@@ -1,15 +1,21 @@
 #include "config.h"
 #include <Arduino.h>
 #include <USB.h>
+#include <OneButton.h>
 
 // at8236 control pins
 constexpr uint8_t first_pin{8};
 constexpr uint8_t second_pin{18};
 
 // system buttons
-constexpr uint8_t start_button{40};
-constexpr uint8_t stop_button{41};
-constexpr uint8_t reverse_button{42};
+constexpr uint8_t start_pin{35};
+constexpr uint8_t stop_pin{36};
+constexpr uint8_t reverse_pin{37};
+
+OneButton start_btn(start_pin, true);
+OneButton stop_btn(stop_pin, true);
+OneButton reverse_btn(reverse_pin, true);
+
 
 #if MODE == 0
 
@@ -39,13 +45,9 @@ void reverse()
 void setup()
 {
     // Configure system controls
-    pinMode(start_button, INPUT_PULLUP);
-    pinMode(stop_button, INPUT_PULLUP);
-    pinMode(reverse_button, INPUT_PULLUP);
-
-    attachInterrupt(digitalPinToInterrupt(start_button), start, FALLING);
-    attachInterrupt(digitalPinToInterrupt(stop_button), stop, FALLING);
-    attachInterrupt(digitalPinToInterrupt(reverse_button), reverse, FALLING);
+    start_btn.attachClick(start);
+    stop_btn.attachClick(stop);
+    reverse_btn.attachClick(reverse);
 
     // Configure USB
     USB.manufacturerName("simia");
@@ -56,4 +58,9 @@ void setup()
 
 void loop()
 {
+    start_btn.tick();
+    stop_btn.tick();
+    reverse_btn.tick();
+
+    vTaskDelay(10);
 }
