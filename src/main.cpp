@@ -51,7 +51,7 @@ void setup()
 
     // Configure USB
     USB.manufacturerName("simia");
-    USB.productName("pump_p001");
+    USB.productName("pump_A100_v0.1.1");
     USB.begin();
     pump.begin();
 }
