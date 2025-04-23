@@ -1,7 +1,8 @@
 #include "config.h"
 #include <Arduino.h>
-#include <USB.h>
 #include <OneButton.h>
+#include <Preferences.h>
+#include <USB.h>
 
 // at8236 control pins
 constexpr uint8_t first_pin{8};
@@ -16,6 +17,10 @@ OneButton start_btn(start_pin, true);
 OneButton stop_btn(stop_pin, true);
 OneButton reverse_btn(reverse_pin, true);
 
+Preferences prefs{};
+const char *pref_name = "pump_A100";
+const char *pref_key = "device_id";
+uint32_t device_id{0};
 
 #if MODE == 0
 
@@ -23,7 +28,7 @@ OneButton reverse_btn(reverse_pin, true);
 #include "at8236_hid.h"
 
 // simia::AT8236BrushlessHID pump(first_pin, second_pin, 0, speed_ctrl_pin, report_pin, direction_ctrl_pin);
-simia::AT8236HID pump(first_pin, second_pin, 1.0f);
+simia::AT8236HID pump(first_pin, second_pin, 1.0f, device_id);
 
 #endif
 
@@ -49,6 +54,22 @@ void setup()
     stop_btn.attachClick(stop);
     reverse_btn.attachClick(reverse);
 
+    prefs.begin(pref_name, true);
+
+    if (!prefs.isKey(pref_key))
+    {
+        prefs.end();
+        prefs.begin(pref_name, false);
+        prefs.putUInt(pref_key, device_id);
+        prefs.end();
+        prefs.begin(pref_name, true);
+    }
+
+    device_id = prefs.getUInt(pref_key);
+    prefs.end();
+
+    pump.device_id = device_id;
+
     // Configure USB
     USB.manufacturerName("simia");
     USB.productName("pump_A100_v0.1.1");
@@ -61,6 +82,15 @@ void loop()
     start_btn.tick();
     stop_btn.tick();
     reverse_btn.tick();
+
+    //TODO: handle by usb events
+    if (pump.device_id != device_id)
+    {
+        device_id = pump.device_id;
+        prefs.begin(pref_name, false);
+        prefs.putUInt(pref_key, device_id);
+        prefs.end();
+    }
 
     vTaskDelay(10);
 }
