@@ -29,7 +29,7 @@ simia::AT8236HID pump(first_pin, second_pin, 1.0f);
 
 void start()
 {
-    pump.start();
+    pump.add_task(0);
 }
 
 void stop()
