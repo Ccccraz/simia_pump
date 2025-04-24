@@ -1,4 +1,4 @@
-// 0: At8236 brushless HID mode
+// 0: At8236 HID mode
 // TODO: 1: At8236 bruseless Serial mode
 // TODO: 2: At8236 HID mode
 // TODO: 3: At8236 Serial mode
