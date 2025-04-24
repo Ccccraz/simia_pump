@@ -1,8 +1,12 @@
 #include "at8236_hid.h"
 
-namespace simia
-{
-void AT8236HID::cmd_parser(report_t &report)
+ESP_EVENT_DEFINE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
+esp_err_t arduino_usb_event_post(esp_event_base_t event_base, int32_t event_id, void *event_data,
+                                 size_t event_data_size, TickType_t ticks_to_wait);
+esp_err_t arduino_usb_event_handler_register_with(esp_event_base_t event_base, int32_t event_id,
+                                                  esp_event_handler_t event_handler, void *event_handler_arg);
+
+void AT8236HID::_cmd_parser(report_t &report)
 {
     if (report.device_id != device_id)
         return;
@@ -33,27 +37,27 @@ void AT8236HID::cmd_parser(report_t &report)
     }
 }
 
-void AT8236HID::work_thread(void *param)
+void AT8236HID::_work_thread(void *param)
 {
     AT8236HID *pump = static_cast<AT8236HID *>(param);
     uint32_t duration{};
     while (true)
     {
-        if (xQueueReceive(pump->task_queue, &duration, portMAX_DELAY) == pdPASS)
+        if (xQueueReceive(pump->_task_queue, &duration, portMAX_DELAY) == pdPASS)
         {
-            pump->start(duration);
+            pump->_start(duration);
         }
     }
 }
 
 void AT8236HID::add_task(uint32_t duration)
 {
-    xQueueSend(task_queue, &duration, 0);
+    xQueueSend(_task_queue, &duration, 0);
 }
 
-void AT8236HID::start_direct()
+void AT8236HID::_start_direct()
 {
-    stop_direct();
+    _stop_direct();
 
     analogWrite(_in1_pin, _speed_to_report);
     analogWrite(_in2_pin, LOW);
@@ -61,7 +65,7 @@ void AT8236HID::start_direct()
     _rewarding = true;
 }
 
-void AT8236HID::stop_direct()
+void AT8236HID::_stop_direct()
 {
     analogWrite(_in1_pin, LOW);
     analogWrite(_in2_pin, LOW);
@@ -73,8 +77,8 @@ void AT8236HID::stop_direct()
 /// @param in1_pin Positive pin
 /// @param in2_pin Negative pin
 /// @param speed Initial speed
-AT8236HID::AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed, uint32_t device_id)
-    : _in1_pin(in1_pin), _in2_pin(in2_pin), _speed(constrain(speed, 0.0f, 1.0f)), device_id(device_id)
+AT8236HID::AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed)
+    : _in1_pin(in1_pin), _in2_pin(in2_pin), _speed(constrain(speed, 0.0f, 1.0f))
 {
     // Set up positive pin and negative pin
     pinMode(_in1_pin, OUTPUT);
@@ -90,19 +94,15 @@ AT8236HID::AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed, uint32_t dev
     }
 
     // Create task queue
-    task_queue = xQueueCreate(100, sizeof(uint32_t));
+    _task_queue = xQueueCreate(100, sizeof(uint32_t));
 
-    this->stop_direct();
-}
-
-AT8236HID::~AT8236HID()
-{
+    this->_stop_direct();
 }
 
 /// @brief Start the pump with a given duration
 /// @param duraiton Duration of the pump
 /// @return
-auto AT8236HID::start(uint32_t duration) -> void
+auto AT8236HID::_start(uint32_t duration) -> void
 {
     analogWrite(_in1_pin, _speed_to_report);
     analogWrite(_in2_pin, LOW);
@@ -143,7 +143,7 @@ auto AT8236HID::start(uint32_t duration) -> void
             }
         }
     }
-    stop_direct();
+    _stop_direct();
 }
 
 auto AT8236HID::stop(bool all) -> void
@@ -167,9 +167,9 @@ auto AT8236HID::reverse() -> void
 {
     if (_rewarding)
     {
-        stop_direct();
+        _stop_direct();
         std::swap(_in1_pin, _in2_pin);
-        start_direct();
+        _start_direct();
     }
     else
     {
@@ -182,7 +182,7 @@ auto AT8236HID::begin() -> void
     _usbhid.begin();
 
     TaskHandle_t worker_task_handle{};
-    xTaskCreate(work_thread, "AT8236HID", 1024 * 8, this, tskIDLE_PRIORITY + 1, &worker_task_handle);
+    xTaskCreate(_work_thread, "AT8236HID", 1024 * 8, this, tskIDLE_PRIORITY + 1, &worker_task_handle);
 }
 
 auto AT8236HID::_onGetDescriptor(uint8_t *buffer) -> uint16_t
@@ -195,7 +195,7 @@ auto AT8236HID::_onOutput(uint8_t report_id, const uint8_t *buffer, uint16_t len
 {
     report_t report{};
     memcpy(&report, buffer, sizeof(report));
-    cmd_parser(report);
+    _cmd_parser(report);
 }
 
 auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t len) -> void
@@ -207,15 +207,32 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
         return;
 
     device_id = feature.new_device_id;
+
+    arduino_usb_hid_simia_pump_event_data_t event_data{};
+    event_data.buffer = buffer;
+    event_data.len = len;
+
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_FEATURE_EVENT, &event_data,
+                           sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
 }
 
 auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) -> uint16_t
 {
-    uint32_t feature[]{device_id, device_id};
+    feature_t fea{.device_id = device_id, .new_device_id = device_id};
 
-    memcpy(buffer, &feature, sizeof(feature));
+    memcpy(buffer, &fea, len);
 
-    return sizeof(feature);
+    return len;
+}
+
+auto AT8236HID::onEvent(esp_event_handler_t callback) -> void
+{
+    this->onEvent(ARDUINO_USB_HID_SIMIA_PUMP_ANY_EVENT, callback);
+}
+
+auto AT8236HID::onEvent(arduino_usb_hid_simia_pump_event_t event, esp_event_handler_t callback) -> void
+{
+    arduino_usb_event_handler_register_with(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, event, callback, this);
 }
 
 auto AT8236HID::set_speed(uint32_t speed) -> void
@@ -228,10 +245,3 @@ auto AT8236HID::set_speed(uint32_t speed) -> void
         analogWrite(_in1_pin, _speed_to_report);
     }
 }
-
-auto AT8236HID::get_speed() -> float
-{
-    return _speed;
-}
-
-} // namespace simia

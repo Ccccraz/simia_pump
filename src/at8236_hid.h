@@ -2,17 +2,27 @@
 #define AT8236_HID
 
 #include <Arduino.h>
-#include <USB.h>
 #include <USBHID.h>
 
 #include <atomic>
 #include <cstring>
 
-#include "EEPROM.h"
-#include <Preferences.h>
+ESP_EVENT_DECLARE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
 
-namespace simia
+enum arduino_usb_hid_simia_pump_event_t
 {
+    ARDUINO_USB_HID_SIMIA_PUMP_ANY_EVENT = ESP_EVENT_ANY_ID,
+    ARDUINO_USB_HID_SIMIA_PUMP_SET_FEATURE_EVENT = 0,
+    ARDUINO_USB_HID_SIMIA_PUMP_GET_FEATURE_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_OUTPUT_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_MAX_EVENT,
+};
+
+struct arduino_usb_hid_simia_pump_event_data_t
+{
+    const uint8_t *buffer;
+    uint16_t len;
+};
 
 class AT8236HID : USBHIDDevice
 {
@@ -37,8 +47,8 @@ class AT8236HID : USBHIDDevice
         0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
 
         0x09, 0x02, //     USAGE (Vendor Usage 2)
-        0x75, 0x20, //     REPORT_SIZE (32)
-        0x95, 0x02, //     REPORT_COUNT (2)
+        0x75, 0x08, //     REPORT_SIZE (8)
+        0x95, 0x08, //     REPORT_COUNT (8)
         0xb1, 0x02, //     FEATURE (Data,Var,Abs)
 
         0xc0, //   END_COLLECTION
@@ -67,7 +77,6 @@ class AT8236HID : USBHIDDevice
         uint32_t new_device_id;
     };
 
-
     // HID device
     USBHID _usbhid{};
 
@@ -86,34 +95,33 @@ class AT8236HID : USBHIDDevice
     bool _rewarding{false};
     std::atomic<bool> stop_request_{false};
 
-    void cmd_parser(report_t &report);
+    QueueHandle_t _task_queue{};
 
-    static void work_thread(void *param);
-
-    void start_direct();
-    void stop_direct();
+    void _cmd_parser(report_t &report);
+    static void _work_thread(void *param);
+    void _start_direct();
+    void _stop_direct();
+    auto _start(uint32_t duration = 0) -> void;
 
   public:
     uint32_t device_id{0};
 
-    QueueHandle_t task_queue{};
-    AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed, uint32_t device_id);
-    ~AT8236HID();
+    AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed);
+    ~AT8236HID() = default;
 
     void add_task(uint32_t duration);
     auto stop(bool all = true) -> void;
     auto reverse() -> void;
+
     auto set_speed(uint32_t speed) -> void;
-    auto get_speed() -> float;
 
     auto begin() -> void;
     auto _onGetDescriptor(uint8_t *buffer) -> uint16_t;
     auto _onOutput(uint8_t report_id, const uint8_t *buffer, uint16_t len) -> void;
     auto _onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t len) -> void;
     auto _onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) -> uint16_t;
+    auto onEvent(esp_event_handler_t callback) -> void;
+    auto onEvent(arduino_usb_hid_simia_pump_event_t event, esp_event_handler_t callback) -> void;
 };
-
-
-} // namespace simia
 
 #endif
