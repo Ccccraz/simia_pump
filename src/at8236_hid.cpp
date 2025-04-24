@@ -109,9 +109,6 @@ auto AT8236HID::_start(uint32_t duration) -> void
 
     _rewarding = true;
 
-    const uint32_t start_time = millis();
-    const uint32_t end_time = start_time + duration;
-
     if (duration == 0)
     {
         while (true)
@@ -128,6 +125,8 @@ auto AT8236HID::_start(uint32_t duration) -> void
     }
     else
     {
+        const uint32_t start_time = millis();
+        const uint32_t end_time = start_time + duration;
         while (millis() < end_time)
         {
             constexpr uint32_t check_interval_ms = 100;
@@ -159,8 +158,11 @@ auto AT8236HID::stop(bool all) -> void
         }
     }
 
-    _rewarding = false;
-    stop_request_.store(true);
+    if (_rewarding)
+    {
+        _rewarding = false;
+        stop_request_.store(true);
+    }
 }
 
 auto AT8236HID::reverse() -> void
@@ -182,7 +184,7 @@ auto AT8236HID::begin() -> void
     _usbhid.begin();
 
     TaskHandle_t worker_task_handle{};
-    xTaskCreate(_work_thread, "AT8236HID", 1024 * 8, this, tskIDLE_PRIORITY + 1, &worker_task_handle);
+    xTaskCreate(_work_thread, "AT8236HID", 1024 * 8, this, configMAX_PRIORITIES - 1, &worker_task_handle);
 }
 
 auto AT8236HID::_onGetDescriptor(uint8_t *buffer) -> uint16_t
