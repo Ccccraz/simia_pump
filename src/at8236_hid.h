@@ -101,8 +101,7 @@ class AT8236HID : USBHIDDevice
     ~AT8236HID();
 
     void add_task(uint32_t duration);
-    auto start(uint32_t duration = 0) -> void;
-    auto stop() -> void;
+    auto stop(bool all = true) -> void;
     auto reverse() -> void;
     auto set_speed(uint32_t speed) -> void;
     auto get_speed() -> float;

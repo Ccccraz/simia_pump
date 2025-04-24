@@ -13,7 +13,14 @@ void AT8236HID::cmd_parser(report_t &report)
         add_task(report.payload);
         break;
     case STOP:
-        stop();
+        if (report.payload != 0)
+        {
+            stop(false);
+        }
+        else
+        {
+            stop(true);
+        }
         break;
     case REVERSE:
         reverse();
@@ -139,14 +146,17 @@ auto AT8236HID::start(uint32_t duration) -> void
     stop_direct();
 }
 
-auto AT8236HID::stop() -> void
+auto AT8236HID::stop(bool all) -> void
 {
     analogWrite(_in1_pin, LOW);
     analogWrite(_in2_pin, LOW);
 
-    uint32_t receivedItem{};
-    while (xQueueReceive(task_queue, &receivedItem, 0) == pdTRUE)
+    if (all)
     {
+        uint32_t receivedItem{};
+        while (xQueueReceive(_task_queue, &receivedItem, 0) == pdTRUE)
+        {
+        }
     }
 
     _rewarding = false;
