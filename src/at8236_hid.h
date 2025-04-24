@@ -48,7 +48,7 @@ class AT8236HID : USBHIDDevice
 
         0x09, 0x02, //     USAGE (Vendor Usage 2)
         0x75, 0x08, //     REPORT_SIZE (8)
-        0x95, 0x08, //     REPORT_COUNT (8)
+        0x95, 0x4B, //     REPORT_COUNT (75)
         0xb1, 0x02, //     FEATURE (Data,Var,Abs)
 
         0xc0, //   END_COLLECTION
@@ -75,6 +75,15 @@ class AT8236HID : USBHIDDevice
     {
         uint32_t device_id;
         uint32_t new_device_id;
+
+        struct
+        {
+            uint8_t ssid_len;
+            uint8_t password_len;
+            char ssid[32];
+            char password[32];
+            char need_wifi;
+        } wifi;
     };
 
     // HID device
