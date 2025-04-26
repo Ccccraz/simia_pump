@@ -208,19 +208,49 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
     if (feature.device_id != device_id)
         return;
 
-    device_id = feature.new_device_id;
-
     arduino_usb_hid_simia_pump_event_data_t event_data{};
     event_data.buffer = buffer;
     event_data.len = len;
 
-    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_FEATURE_EVENT, &event_data,
-                           sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+    switch (feature.cmd)
+    {
+    case SET_DEVICE_ID:
+        // this->device_id = feature.new_device_id;
+        // arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT,
+        //                        &event_data, sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+        break;
+    case SET_WIFI:
+        // this->ssid = feature.wifi.ssid;
+        // this->password = feature.wifi.password;
+        // this->need_wifi = feature.wifi.need_wifi;
+        // arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT,
+        //                        &event_data, sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+        break;
+    case SET_OTA:
+        // if (feature.ota.need_ota == 0x01)
+        // {
+        arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT, &event_data,
+                               sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+        // }
+        break;
+    default:
+        break;
+    }
 }
 
 auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) -> uint16_t
 {
-    feature_t fea{.device_id = device_id, .new_device_id = device_id};
+    feature_t fea{};
+    fea.device_id = device_id;
+    fea.cmd = SET_DEVICE_ID;
+    // fea.new_device_id = device_id;
+
+    // fea.wifi.ssid_len = this->ssid.length();
+    // memcpy(fea.wifi.ssid, this->ssid.c_str(), fea.wifi.ssid_len);
+    // fea.wifi.password_len = this->password.length();
+    // memcpy(fea.wifi.password, this->password.c_str(), fea.wifi.password_len);
+
+    // fea.ota.need_ota = 0x00;
 
     memcpy(buffer, &fea, len);
 

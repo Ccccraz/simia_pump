@@ -12,10 +12,9 @@ ESP_EVENT_DECLARE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
 enum arduino_usb_hid_simia_pump_event_t
 {
     ARDUINO_USB_HID_SIMIA_PUMP_ANY_EVENT = ESP_EVENT_ANY_ID,
-    ARDUINO_USB_HID_SIMIA_PUMP_SET_FEATURE_EVENT = 0,
-    ARDUINO_USB_HID_SIMIA_PUMP_GET_FEATURE_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_OUTPUT_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_MAX_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT = 0,
+    ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT,
 };
 
 struct arduino_usb_hid_simia_pump_event_data_t
@@ -47,8 +46,8 @@ class AT8236HID : USBHIDDevice
         0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
 
         0x09, 0x02, //     USAGE (Vendor Usage 2)
-        0x75, 0x08, //     REPORT_SIZE (8)
-        0x95, 0x4B, //     REPORT_COUNT (75)
+        0x75, 0x20, //     REPORT_SIZE (32)
+        0x95, 0x02, //     REPORT_COUNT (2)
         0xb1, 0x02, //     FEATURE (Data,Var,Abs)
 
         0xc0, //   END_COLLECTION
@@ -63,6 +62,13 @@ class AT8236HID : USBHIDDevice
         SET_SPEED = 3,
     };
 
+    enum feature_cmd_t
+    {
+        SET_DEVICE_ID = 0,
+        SET_WIFI = 1,
+        SET_OTA = 2,
+    };
+
     struct report_t
     {
         uint32_t device_id;
@@ -74,16 +80,7 @@ class AT8236HID : USBHIDDevice
     struct feature_t
     {
         uint32_t device_id;
-        uint32_t new_device_id;
-
-        struct
-        {
-            uint8_t ssid_len;
-            uint8_t password_len;
-            char ssid[32];
-            char password[32];
-            char need_wifi;
-        } wifi;
+        uint32_t cmd;
     };
 
     // HID device
@@ -114,6 +111,9 @@ class AT8236HID : USBHIDDevice
 
   public:
     uint32_t device_id{0};
+    String ssid{};
+    String password{};
+    uint8_t need_wifi{0};
 
     AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed);
     ~AT8236HID() = default;
