@@ -34,8 +34,6 @@ PubSubClient mqtt_client{esp_client};
 
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
-simia::config_t config{};
-
 static void start()
 {
     pump.add_task(0);
@@ -53,19 +51,20 @@ void reverse()
 
 void init_device_id()
 {
-    init_device_id();
+    auto config = simia::load_config();
     config.device_id = 0x00;
     pump.set_device_id(config.device_id);
 }
 
 void init_pump_wifi_config()
 {
+    auto config = simia::load_config();
     config.wifi.ssid = simia::default_wifi_ssid;
     config.wifi.password = simia::default_wifi_pass;
     simia::save_config(config);
 }
 
-void ota_update()
+void ota_update(simia::config_t &config)
 {
     if (WiFi.status() == WL_CONNECTED)
     {
@@ -90,6 +89,7 @@ void ota_update()
 void set_device_id_cb(void *param)
 {
     auto device_id = *(uint8_t *)param;
+    auto config = simia::load_config();
     config.device_id = device_id;
     simia::save_config(config);
 }
@@ -196,13 +196,24 @@ void WiFi_cb(WiFiEvent_t event)
     }
 }
 
-void normal_start()
+void normal_start(simia::config_t config)
 {
-    // TODO: add normal start
-    WiFi.mode(WIFI_STA);
-    WiFi.onEvent(WiFi_cb);
+    if (config.wifi_requirement == simia::wifi_requirement_t::REQUIRED)
+    {
+        if (!config.wifi.ssid.isEmpty())
+        {
+            WiFi.mode(WIFI_STA);
 
-    // WiFi.begin(ssid, password);
+            WiFi.begin(config.wifi.ssid, config.wifi.password);
+
+            while (WiFi.status() != WL_CONNECTED)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+
+            connect_mqtt();
+        }
+    }
 
     pump.set_device_id(config.device_id);
     pump.onEvent(simiapump_event_callback);
@@ -215,36 +226,42 @@ void normal_start()
 
     // start button task
     xTaskCreatePinnedToCore(btn_task, "btn_task", 1024 * 10, nullptr, 1, nullptr, 1);
+    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 10, nullptr, 1, nullptr, 1);
 }
 
-void flash_start()
+void flash_start(simia::config_t config)
 {
-    Serial.begin(115200);
+    config.start_mode = simia::start_mode_t::NORMAL;
+    simia::save_config(config);
 }
 
-void active_ota_start(String ssid, String password)
+void active_ota_start(simia::config_t config)
 {
+
     WiFi.mode(WIFI_STA);
-    WiFi.onEvent(WiFi_cb);
+    WiFi.begin(config.wifi.ssid, config.wifi.password);
 
-    // WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED){
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 
-    ota_update();
+    ota_update(config);
 }
 
 void setup()
 {
-    config = simia::load_config();
+    auto config = simia::load_config();
 
     switch (config.start_mode)
     {
     case simia::start_mode_t::NORMAL:
-        normal_start();
+        normal_start(config);
         break;
     case simia::start_mode_t::FLASH:
-        flash_start();
+        flash_start(config);
         break;
     case simia::start_mode_t::ACTIVE_OTA:
+        active_ota_start(config);
         break;
     default:
         break;
