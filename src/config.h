@@ -3,6 +3,15 @@
 
 #include <Arduino.h>
 
+// at8236 control pins
+constexpr const uint8_t first_pin{8};
+constexpr const uint8_t second_pin{18};
+
+// system buttons
+constexpr const gpio_num_t start_pin{GPIO_NUM_35};
+constexpr const gpio_num_t stop_pin{GPIO_NUM_36};
+constexpr const gpio_num_t reverse_pin{GPIO_NUM_37};
+
 namespace simia
 {
 // WiFi Config
@@ -63,6 +72,9 @@ constexpr const start_mode_t default_start_mode{start_mode_t::NORMAL};
 // OTA
 constexpr const char *pref_ota_url_key = "ota_url";
 constexpr const char *default_ota_url = "";
+
+void init_device_id();
+void init_wifi_config();
 
 void init_config();
 config_t load_config();

@@ -5,6 +5,22 @@ namespace simia
 {
 Preferences prefs{};
 
+void init_device_id()
+{
+    auto config = simia::load_config();
+    config.device_id = default_device_id;
+    simia::save_config(config);
+    // pump.set_device_id(config.device_id);
+}
+
+void init_wifi_config()
+{
+    auto config = simia::load_config();
+    config.wifi.ssid = simia::default_wifi_ssid;
+    config.wifi.password = simia::default_wifi_pass;
+    simia::save_config(config);
+}
+
 void init_config()
 {
     prefs.begin(pref_name, false);

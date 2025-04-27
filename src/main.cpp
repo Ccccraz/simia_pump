@@ -15,24 +15,8 @@
 
 #include <USB.h>
 
-simia::start_mode_t start_mode{simia::start_mode_t::NORMAL};
-
-// at8236 control pins
-const uint8_t first_pin{8};
-const uint8_t second_pin{18};
-
-// system buttons
-constexpr gpio_num_t start_pin{GPIO_NUM_35};
-constexpr gpio_num_t stop_pin{GPIO_NUM_36};
-constexpr gpio_num_t reverse_pin{GPIO_NUM_37};
-
-// control functions
-OneButton start_button{};
-OneButton stop_button{};
-OneButton reverse_button{};
-
-WiFiClientSecure esp_client{};
-PubSubClient mqtt_client{esp_client};
+auto esp_client = std::make_shared<WiFiClientSecure>();
+auto mqtt_client = std::make_shared<PubSubClient>(*esp_client);
 
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
@@ -53,36 +37,25 @@ void reverse()
 
 void init_device_id()
 {
-    auto config = simia::load_config();
-    config.device_id = 0x00;
-    simia::save_config(config);
-    pump.set_device_id(config.device_id);
-}
-
-void init_pump_wifi_config()
-{
-    auto config = simia::load_config();
-    config.wifi.ssid = simia::default_wifi_ssid;
-    config.wifi.password = simia::default_wifi_pass;
-    simia::save_config(config);
+    pump.set_device_id(simia::default_device_id);
 }
 
 void ota_monitor_task(void *param)
 {
     auto status = HttpsOTA.status();
+    mqtt_client->publish(mqtt_topic_pub, "OTA update in progress");
     while (true)
     {
         status = HttpsOTA.status();
-        mqtt_client.publish(mqtt_topic_pub, "OTA update in progress");
 
         if (status == HTTPS_OTA_SUCCESS)
         {
-            mqtt_client.publish(mqtt_topic_pub, "OTA update success");
+            mqtt_client->publish(mqtt_topic_pub, "OTA update success");
             ESP.restart();
         }
         else if (status == HTTPS_OTA_FAIL)
         {
-            mqtt_client.publish(mqtt_topic_pub, "OTA update failed");
+            mqtt_client->publish(mqtt_topic_pub, "OTA update failed");
             ESP.restart();
         }
 
@@ -94,9 +67,7 @@ void ota_update(simia::config_t &config, const String &url)
 {
     if (WiFi.status() == WL_CONNECTED)
     {
-        config.start_mode = simia::start_mode_t::NORMAL;
-        simia::save_config(config);
-        mqtt_client.publish(mqtt_topic_pub, "OTA update started");
+        mqtt_client->publish(mqtt_topic_pub, "OTA update started");
 
         HttpsOTA.begin(url.c_str(), ca_cert);
 
@@ -185,6 +156,11 @@ static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int
 
 void btn_task(void *param)
 {
+    // control functions
+    OneButton start_button{};
+    OneButton stop_button{};
+    OneButton reverse_button{};
+
     // Configure buttons
     start_button.setup(start_pin);
     stop_button.setup(reverse_pin);
@@ -193,7 +169,7 @@ void btn_task(void *param)
     start_button.attachClick(start);
     stop_button.attachClick(stop);
     stop_button.setPressMs(5000);
-    stop_button.attachLongPressStart(init_pump_wifi_config);
+    stop_button.attachLongPressStart(simia::init_wifi_config);
 
     reverse_button.attachClick(reverse);
     reverse_button.setPressMs(5000);
@@ -211,17 +187,16 @@ void btn_task(void *param)
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
-    HTTPClient http_client{};
-    auto url = parse_gitee_url(http_client);
+    auto url = parse_gitee_url();
 
     if (url.isEmpty())
     {
-        mqtt_client.publish(mqtt_topic_pub, "Failed to parse url");
+        mqtt_client->publish(mqtt_topic_pub, "Failed to parse url");
         return;
     }
     else
     {
-        mqtt_client.publish(mqtt_topic_pub, url.c_str());
+        mqtt_client->publish(mqtt_topic_pub, url.c_str());
     }
 
     auto config = simia::load_config();
@@ -230,17 +205,17 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
 
 void connect_mqtt()
 {
-    mqtt_client.setServer(mqtt_broker, mqtt_port);
-    mqtt_client.setKeepAlive(60);
-    mqtt_client.setCallback(mqtt_callback);
+    mqtt_client->setServer(mqtt_broker, mqtt_port);
+    mqtt_client->setKeepAlive(60);
+    mqtt_client->setCallback(mqtt_callback);
 
-    while (!mqtt_client.connected())
+    while (!mqtt_client->connected())
     {
         String client_id = "esp32-client-" + String(WiFi.macAddress());
-        if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password))
+        if (mqtt_client->connect(client_id.c_str(), mqtt_username, mqtt_password))
         {
-            mqtt_client.subscribe(mqtt_topic_sub);
-            mqtt_client.publish(mqtt_topic_pub, "hello world!");
+            mqtt_client->subscribe(mqtt_topic_sub);
+            mqtt_client->publish(mqtt_topic_pub, "hello world!");
             vTaskDelay(5000);
         }
     }
@@ -248,14 +223,18 @@ void connect_mqtt()
 
 void mqtt_task(void *param)
 {
+    esp_client->setCACert(ca_cert);
+
+    connect_mqtt();
+
     auto status = HttpsOTA.status();
     while (true)
     {
-        if (!mqtt_client.connected())
+        if (!mqtt_client->connected())
         {
             connect_mqtt();
         }
-        mqtt_client.loop();
+        mqtt_client->loop();
 
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
@@ -283,8 +262,6 @@ void normal_start(simia::config_t config)
             {
                 if (WiFi.status() == WL_CONNECTED)
                 {
-                    esp_client.setCACert(ca_cert);
-                    connect_mqtt();
                     xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 100, nullptr, 1, nullptr, 1);
                     break;
                 }
@@ -311,6 +288,9 @@ void flash_start(simia::config_t config)
 
 void active_ota_start(simia::config_t config)
 {
+    config.start_mode = simia::start_mode_t::NORMAL;
+    simia::save_config(config);
+
     if (config.wifi.ssid.isEmpty())
         return;
 
@@ -322,9 +302,8 @@ void active_ota_start(simia::config_t config)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    esp_client.setCACert(ca_cert);
-    HTTPClient http_client{};
-    auto url = parse_gitee_url(http_client);
+    esp_client->setCACert(ca_cert);
+    auto url = parse_gitee_url();
 
     ota_update(config, url);
 }
