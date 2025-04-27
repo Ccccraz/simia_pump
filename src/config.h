@@ -1,7 +1,62 @@
-// 0: At8236 HID mode
-// TODO: 1: At8236 bruseless Serial mode
-// TODO: 2: At8236 HID mode
-// TODO: 3: At8236 Serial mode
-// TODO: 4: L298N HID mode
-// TODO: 5: L298N Serial mode
-#define MODE 0
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include <Arduino.h>
+
+namespace simia
+{
+// WiFi Config
+struct wifi_config_t
+{
+    String ssid;
+    String password;
+};
+
+enum class wifi_requirement_t : uint8_t
+{
+    REQUIRED = 0x00,
+    NOT_REQUIRED = 0x01
+};
+
+// Start Mode
+enum class start_mode_t : uint8_t
+{
+    NORMAL = 0x00,
+    FLASH = 0x01,
+    ACTIVE_OTA = 0x02,
+};
+
+// Config
+struct config_t
+{
+    uint8_t device_id;
+    wifi_config_t wifi;
+    wifi_requirement_t wifi_requirement;
+    start_mode_t start_mode;
+};
+
+constexpr const char *pref_name = "simia_pump_A100";
+
+// Device ID
+constexpr const char *pref_device_id_key = "device_id";
+constexpr const uint8_t default_device_id{0};
+
+// WiFi
+constexpr const char *pref_wifi_ssid_key = "wifi_ssid";
+constexpr const char *pref_wifi_pass_key = "wifi_pass";
+constexpr const char *pref_wifi_requirement_key = "wifi_requirement";
+
+constexpr const char *default_wifi_ssid = "";
+constexpr const char *default_wifi_pass = "";
+constexpr const wifi_requirement_t default_wifi_requirement{wifi_requirement_t::NOT_REQUIRED};
+
+// Start mode
+constexpr const char *pref_start_mode = "start_mode";
+constexpr const start_mode_t default_start_mode{start_mode_t::NORMAL};
+
+void init_config();
+config_t load_config();
+void save_config(config_t config);
+} // namespace simia
+
+#endif // CONFIG_H

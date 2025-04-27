@@ -1,20 +1,19 @@
 #include "at8236_hid.h"
-#include "preset.h"
+#include "config.h"
+#include "mqtt.h"
+
 #include <Arduino.h>
+#include <OneButton.h>
+
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
-#include <OneButton.h>
-#include <USB.h>
+#include <PubSubClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
-enum simia_start_mode : uint32_t
-{
-    NORMAL = 0,
-    DOWNLOAD = 1,
-    OTA = 2,
-};
+#include <USB.h>
 
-volatile uint32_t simia_start_mode{NORMAL};
+simia::start_mode_t start_mode{simia::start_mode_t::NORMAL};
 
 // at8236 control pins
 constexpr gpio_num_t first_pin{GPIO_NUM_8};
@@ -30,9 +29,12 @@ OneButton start_button{};
 OneButton stop_button{};
 OneButton reverse_button{};
 
+WiFiClientSecure esp_client{};
+PubSubClient mqtt_client{esp_client};
+
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
-volatile bool wifi_init = false;
+simia::config_t config{};
 
 static void start()
 {
@@ -52,19 +54,23 @@ void reverse()
 void init_device_id()
 {
     init_device_id();
-    pump.device_id = load_device_id();
+    config.device_id = 0x00;
+    pump.set_device_id(config.device_id);
 }
 
 void init_pump_wifi_config()
 {
-    init_wifi_config();
+    config.wifi.ssid = simia::default_wifi_ssid;
+    config.wifi.password = simia::default_wifi_pass;
+    simia::save_config(config);
 }
 
 void ota_update()
 {
     if (WiFi.status() == WL_CONNECTED)
     {
-        save_simia_start_mode(simia_start_mode::NORMAL);
+        config.wifi_requirement = simia::wifi_requirement_t::REQUIRED;
+        simia::save_config(config);
         NetworkClient client{};
 
         auto result = httpUpdate.update(client, "http://192.168.1.70:8080/firmware.bin");
@@ -78,27 +84,45 @@ void ota_update()
         case HTTP_UPDATE_OK:
             break;
         }
-
-        ESP.restart();
     }
+}
+
+void set_device_id_cb(void *param)
+{
+    auto device_id = *(uint8_t *)param;
+    config.device_id = device_id;
+    simia::save_config(config);
+}
+
+void set_wifi_cb(void *param)
+{
+}
+
+void set_ota_cb(void *param)
+{
+}
+
+void enable_flash_cb(void *param)
+{
 }
 
 static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == ARDUINO_USB_HID_SIMIA_PUMP_EVENTS)
     {
-        auto *data = (arduino_usb_hid_simia_pump_event_data_t *)event_data;
         switch (event_id)
         {
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT:
-            save_device_id(pump.device_id);
+            set_device_id_cb(event_data);
             break;
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT:
-            save_wifi_config(pump.ssid, pump.password, pump.need_wifi);
+            set_wifi_cb(event_data);
             break;
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT:
-            save_simia_start_mode(simia_start_mode::OTA);
+            set_ota_cb(event_data);
             break;
+        case ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_FLASH_EVENT:
+            enable_flash_cb(event_data);
         default:
             break;
         }
@@ -120,7 +144,8 @@ void btn_task(void *param)
     reverse_button.setPressMs(5000);
     reverse_button.attachLongPressStart(init_device_id);
 
-    while (true) {
+    while (true)
+    {
         start_button.tick();
         stop_button.tick();
         reverse_button.tick();
@@ -129,53 +154,104 @@ void btn_task(void *param)
     }
 }
 
+void connect_mqtt()
+{
+    esp_client.setCACert(ca_cert);
+    mqtt_client.setServer(mqtt_broker, mqtt_port);
+    mqtt_client.setKeepAlive(60);
+
+    while (!mqtt_client.connected())
+    {
+        String client_id = "esp32-client-" + String(WiFi.macAddress());
+        if (!mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password))
+        {
+            vTaskDelay(5000);
+        }
+    }
+}
+
+void mqtt_task(void *param)
+{
+    while (true)
+    {
+        if (!mqtt_client.connected())
+        {
+            connect_mqtt();
+        }
+        mqtt_client.loop();
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+}
+
+void WiFi_cb(WiFiEvent_t event)
+{
+    switch (event)
+    {
+    case WIFI_EVENT_STA_CONNECTED:
+        connect_mqtt();
+        xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 10, nullptr, 1, nullptr, 1);
+        break;
+    default:
+        break;
+    }
+}
+
+void normal_start()
+{
+    // TODO: add normal start
+    WiFi.mode(WIFI_STA);
+    WiFi.onEvent(WiFi_cb);
+
+    // WiFi.begin(ssid, password);
+
+    pump.set_device_id(config.device_id);
+    pump.onEvent(simiapump_event_callback);
+
+    USB.manufacturerName("simia");
+    USB.productName("pump_A100_v0.1.1");
+
+    USB.begin();
+    pump.begin();
+
+    // start button task
+    xTaskCreatePinnedToCore(btn_task, "btn_task", 1024 * 10, nullptr, 1, nullptr, 1);
+}
+
+void flash_start()
+{
+    Serial.begin(115200);
+}
+
+void active_ota_start(String ssid, String password)
+{
+    WiFi.mode(WIFI_STA);
+    WiFi.onEvent(WiFi_cb);
+
+    // WiFi.begin(ssid, password);
+
+    ota_update();
+}
+
 void setup()
 {
-    simia_start_mode = load_simia_start_mode();
+    config = simia::load_config();
 
-    if (simia_start_mode == simia_start_mode::NORMAL)
+    switch (config.start_mode)
     {
-        // Configure pump
-        pump.device_id = load_device_id();
-
-        // handle pump events
-        pump.onEvent(simiapump_event_callback);
-
-        // Configure USB
-        USB.manufacturerName("simia");
-        USB.productName("pump_A100_v0.1.1");
-        USB.begin();
-        pump.begin();
-    }
-    else if (simia_start_mode == simia_start_mode::DOWNLOAD)
-    {
-        Serial.begin(115200);
-    }
-    else if (simia_start_mode == simia_start_mode::OTA)
-    {
-        auto wifi_config = load_wifi_config();
-
-        if (wifi_config.need == 0x01)
-        {
-            WiFi.begin(wifi_config.ssid, wifi_config.password);
-            while (WiFi.status() != WL_CONNECTED)
-            {
-                delay(1000);
-            }
-        }
+    case simia::start_mode_t::NORMAL:
+        normal_start();
+        break;
+    case simia::start_mode_t::FLASH:
+        flash_start();
+        break;
+    case simia::start_mode_t::ACTIVE_OTA:
+        break;
+    default:
+        break;
     }
 }
 
 void loop()
 {
-    start_button.tick();
-    stop_button.tick();
-    reverse_button.tick();
-
-    if (simia_start_mode == simia_start_mode::OTA)
-    {
-        ota_update();
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(portMAX_DELAY);
 }

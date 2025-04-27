@@ -7,20 +7,73 @@
 #include <atomic>
 #include <cstring>
 
-ESP_EVENT_DECLARE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
+// HID Features
+struct wifi_info_t
+{
+    uint8_t ssid_len;
+    uint8_t password_len;
+    uint8_t ssid[29];
+    uint8_t password[29];
+};
 
+struct ota_info_t
+{
+    uint8_t url_len;
+    uint8_t url[59];
+};
+
+union feature_payload_t {
+    wifi_info_t wifi_info;
+    ota_info_t ota_info;
+    uint8_t new_device_id;
+    uint8_t data[60];
+};
+
+enum class feature_cmd_t : uint8_t
+{
+    SET_DEVICE_ID = 0x01,
+    SET_WIFI = 0x02,
+    SET_OTA = 0x03,
+    ENABLE_WIFI = 0x04,
+    DISABLE_WIFI = 0x05,
+    ENABLE_FLASH = 0x06,
+};
+
+struct feature_t
+{
+    uint8_t device_id;
+    feature_cmd_t cmd;
+    uint8_t payload_len;
+    feature_payload_t payload;
+};
+
+// HID Report
+enum class cmd_t : uint8_t
+{
+    START = 0x00,
+    STOP = 0x01,
+    REVERSE = 0x02,
+    SET_SPEED = 0x03,
+};
+
+struct report_t
+{
+    uint8_t device_id;
+    cmd_t cmd;
+    uint32_t payload;
+};
+
+// Events
+ESP_EVENT_DECLARE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
 enum arduino_usb_hid_simia_pump_event_t
 {
     ARDUINO_USB_HID_SIMIA_PUMP_ANY_EVENT = ESP_EVENT_ANY_ID,
     ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT = 0,
     ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT,
     ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT,
-};
-
-struct arduino_usb_hid_simia_pump_event_data_t
-{
-    const uint8_t *buffer;
-    uint16_t len;
+    ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_WIFI_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_DISABLE_WIFI_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_FLASH_EVENT,
 };
 
 class AT8236HID : USBHIDDevice
@@ -41,47 +94,19 @@ class AT8236HID : USBHIDDevice
         0x81, 0x02,       //     INPUT (Data,Var,Abs)
         0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
         0x09, 0x01,       //     USAGE (Vendor Usage 1)
-        0x75, 0x20,       //     REPORT_SIZE (32)
-        0x95, 0x03,       //     REPORT_COUNT (3)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
         0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
 
         0x09, 0x02, //     USAGE (Vendor Usage 2)
-        0x75, 0x20, //     REPORT_SIZE (32)
-        0x95, 0x02, //     REPORT_COUNT (2)
+        0x75, 0x08, //     REPORT_SIZE (8)
+        0x95, 0x3F, //     REPORT_COUNT (63)
         0xb1, 0x02, //     FEATURE (Data,Var,Abs)
 
         0xc0, //   END_COLLECTION
         0xc0  // END_COLLECTION
     };
-
-    enum cmd_t
-    {
-        START = 0,
-        STOP = 1,
-        REVERSE = 2,
-        SET_SPEED = 3,
-    };
-
-    enum feature_cmd_t
-    {
-        SET_DEVICE_ID = 0,
-        SET_WIFI = 1,
-        SET_OTA = 2,
-    };
-
-    struct report_t
-    {
-        uint32_t device_id;
-        uint32_t cmd;
-        uint32_t payload;
-    };
-
-    // TODO: Preset SSID and password
-    struct feature_t
-    {
-        uint32_t device_id;
-        uint32_t cmd;
-    };
+    uint8_t _device_id{0};
 
     // HID device
     USBHID _usbhid{};
@@ -109,12 +134,15 @@ class AT8236HID : USBHIDDevice
     void _stop_direct();
     auto _start(uint32_t duration = 0) -> void;
 
-  public:
-    uint32_t device_id{0};
-    String ssid{};
-    String password{};
-    uint8_t need_wifi{0};
+    // Evnet handler
+    void _on_set_device_id(const feature_t &feature);
+    void _on_set_wifi(const feature_t &feature);
+    void _on_set_ota(const feature_t &feature);
+    void _on_enable_wifi(const feature_t &feature);
+    void _on_disable_wifi(const feature_t &feature);
+    void _on_enable_flash(const feature_t &feature);
 
+  public:
     AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed);
     ~AT8236HID() = default;
 
@@ -123,6 +151,7 @@ class AT8236HID : USBHIDDevice
     auto reverse() -> void;
 
     auto set_speed(uint32_t speed) -> void;
+    auto set_device_id(uint8_t device_id) -> void;
 
     auto begin() -> void;
     auto _onGetDescriptor(uint8_t *buffer) -> uint16_t;

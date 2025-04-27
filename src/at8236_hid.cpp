@@ -8,15 +8,15 @@ esp_err_t arduino_usb_event_handler_register_with(esp_event_base_t event_base, i
 
 void AT8236HID::_cmd_parser(report_t &report)
 {
-    if (report.device_id != device_id)
+    if (report.device_id != this->_device_id)
         return;
 
     switch (report.cmd)
     {
-    case START:
+    case cmd_t::START:
         add_task(report.payload);
         break;
-    case STOP:
+    case cmd_t::STOP:
         if (report.payload != 0)
         {
             stop(false);
@@ -26,10 +26,10 @@ void AT8236HID::_cmd_parser(report_t &report)
             stop(true);
         }
         break;
-    case REVERSE:
+    case cmd_t::REVERSE:
         reverse();
         break;
-    case SET_SPEED:
+    case cmd_t::SET_SPEED:
         set_speed(report.payload);
         break;
     default:
@@ -40,6 +40,7 @@ void AT8236HID::_cmd_parser(report_t &report)
 void AT8236HID::_work_thread(void *param)
 {
     AT8236HID *pump = static_cast<AT8236HID *>(param);
+
     uint32_t duration{};
     while (true)
     {
@@ -145,6 +146,52 @@ auto AT8236HID::_start(uint32_t duration) -> void
     _stop_direct();
 }
 
+void AT8236HID::_on_set_device_id(const feature_t &feature)
+{
+    this->_device_id = feature.payload.new_device_id;
+    auto data = this->_device_id;
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT, &data,
+                           sizeof(uint8_t), portMAX_DELAY);
+}
+
+void AT8236HID::_on_set_wifi(const feature_t &feature)
+{
+    wifi_info_t wifi_info{};
+    wifi_info.ssid_len = feature.payload.wifi_info.ssid_len;
+    wifi_info.password_len = feature.payload.wifi_info.password_len;
+    memcpy(wifi_info.ssid, feature.payload.wifi_info.ssid, wifi_info.ssid_len);
+    memcpy(wifi_info.password, feature.payload.wifi_info.password, wifi_info.password_len);
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT, &wifi_info,
+                           sizeof(wifi_info_t), portMAX_DELAY);
+}
+
+void AT8236HID::_on_set_ota(const feature_t &feature)
+{
+    ota_info_t ota_info{};
+    ota_info.url_len = feature.payload.ota_info.url_len;
+    memcpy(ota_info.url, feature.payload.ota_info.url, ota_info.url_len);
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT, &ota_info,
+                           sizeof(ota_info_t), portMAX_DELAY);
+}
+
+void AT8236HID::_on_enable_wifi(const feature_t &feature)
+{
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_WIFI_EVENT, nullptr, 0,
+                           portMAX_DELAY);
+}
+
+void AT8236HID::_on_disable_wifi(const feature_t &feature)
+{
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_DISABLE_WIFI_EVENT, nullptr, 0,
+                           portMAX_DELAY);
+}
+
+void AT8236HID::_on_enable_flash(const feature_t &feature)
+{
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_FLASH_EVENT, nullptr, 0,
+                           portMAX_DELAY);
+}
+
 auto AT8236HID::stop(bool all) -> void
 {
     analogWrite(_in1_pin, LOW);
@@ -183,8 +230,7 @@ auto AT8236HID::begin() -> void
 {
     _usbhid.begin();
 
-    TaskHandle_t worker_task_handle{};
-    xTaskCreate(_work_thread, "AT8236HID", 1024 * 8, this, configMAX_PRIORITIES - 1, &worker_task_handle);
+    xTaskCreatePinnedToCore(_work_thread, "AT8236HID", 1024 * 20, this, configMAX_PRIORITIES - 1, nullptr, 1);
 }
 
 auto AT8236HID::_onGetDescriptor(uint8_t *buffer) -> uint16_t
@@ -205,34 +251,35 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
     feature_t feature{};
     memcpy(&feature, buffer, sizeof(feature));
 
-    if (feature.device_id != device_id)
+    if (feature.device_id != this->_device_id)
         return;
-
-    arduino_usb_hid_simia_pump_event_data_t event_data{};
-    event_data.buffer = buffer;
-    event_data.len = len;
 
     switch (feature.cmd)
     {
-    case SET_DEVICE_ID:
-        // this->device_id = feature.new_device_id;
-        // arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT,
-        //                        &event_data, sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+    case feature_cmd_t::SET_DEVICE_ID:
+        this->_on_set_device_id(feature);
         break;
-    case SET_WIFI:
-        // this->ssid = feature.wifi.ssid;
-        // this->password = feature.wifi.password;
-        // this->need_wifi = feature.wifi.need_wifi;
-        // arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT,
-        //                        &event_data, sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
+
+    case feature_cmd_t::SET_WIFI:
+        this->_on_set_wifi(feature);
         break;
-    case SET_OTA:
-        // if (feature.ota.need_ota == 0x01)
-        // {
-        arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT, &event_data,
-                               sizeof(arduino_usb_hid_simia_pump_event_data_t), portMAX_DELAY);
-        // }
+
+    case feature_cmd_t::SET_OTA:
+        this->_on_set_ota(feature);
         break;
+
+    case feature_cmd_t::ENABLE_WIFI:
+        this->_on_enable_wifi(feature);
+        break;
+
+    case feature_cmd_t::DISABLE_WIFI:
+        this->_on_disable_wifi(feature);
+        break;
+
+    case feature_cmd_t::ENABLE_FLASH:
+        this->_on_enable_flash(feature);
+        break;
+
     default:
         break;
     }
@@ -241,8 +288,8 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
 auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) -> uint16_t
 {
     feature_t fea{};
-    fea.device_id = device_id;
-    fea.cmd = SET_DEVICE_ID;
+    fea.device_id = this->_device_id;
+    fea.cmd = feature_cmd_t::SET_DEVICE_ID;
     // fea.new_device_id = device_id;
 
     // fea.wifi.ssid_len = this->ssid.length();
@@ -276,4 +323,9 @@ auto AT8236HID::set_speed(uint32_t speed) -> void
     {
         analogWrite(_in1_pin, _speed_to_report);
     }
+}
+
+auto AT8236HID::set_device_id(uint8_t device_id) -> void
+{
+    this->_device_id = device_id;
 }
