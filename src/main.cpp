@@ -96,14 +96,30 @@ void set_device_id_cb(void *param)
 
 void set_wifi_cb(void *param)
 {
+    auto wifi_info = *(wifi_info_t *)param;
+    auto wifi_ssid = String(wifi_info.ssid, wifi_info.ssid_len);
+    auto wifi_password = String(wifi_info.password, wifi_info.password_len);
+
+    auto config = simia::load_config();
+    config.wifi.ssid = wifi_ssid;
+    config.wifi.password = wifi_password;
+    simia::save_config(config);
 }
 
 void set_ota_cb(void *param)
 {
+    auto ota_info = *(ota_info_t *)param;
+    String ota_url = String(ota_info.url, ota_info.url_len);
+    auto config = simia::load_config();
+    config.ota_url = ota_url;
+    simia::save_config(config);
 }
 
 void enable_flash_cb(void *param)
 {
+    auto config = simia::load_config();
+    config.start_mode = simia::start_mode_t::FLASH;
+    simia::save_config(config);
 }
 
 static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
@@ -241,7 +257,8 @@ void active_ota_start(simia::config_t config)
     WiFi.mode(WIFI_STA);
     WiFi.begin(config.wifi.ssid, config.wifi.password);
 
-    while (WiFi.status() != WL_CONNECTED){
+    while (WiFi.status() != WL_CONNECTED)
+    {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 

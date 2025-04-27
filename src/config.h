@@ -29,13 +29,19 @@ enum class start_mode_t : uint8_t
 // Config
 struct config_t
 {
+    String nickname;
     uint8_t device_id;
     wifi_config_t wifi;
     wifi_requirement_t wifi_requirement;
     start_mode_t start_mode;
+    String ota_url;
 };
 
 constexpr const char *pref_name = "simia_pump_A100";
+
+// Nickname
+constexpr const char *pref_nickname_key = "nickname";
+constexpr const char *default_nickname = "simia pump";
 
 // Device ID
 constexpr const char *pref_device_id_key = "device_id";
@@ -53,6 +59,10 @@ constexpr const wifi_requirement_t default_wifi_requirement{wifi_requirement_t::
 // Start mode
 constexpr const char *pref_start_mode = "start_mode";
 constexpr const start_mode_t default_start_mode{start_mode_t::NORMAL};
+
+// OTA
+constexpr const char *pref_ota_url_key = "ota_url";
+constexpr const char *default_ota_url = "";
 
 void init_config();
 config_t load_config();
