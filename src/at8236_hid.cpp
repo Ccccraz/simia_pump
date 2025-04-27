@@ -1,4 +1,5 @@
 #include "at8236_hid.h"
+#include "config.h"
 
 ESP_EVENT_DEFINE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
 esp_err_t arduino_usb_event_post(esp_event_base_t event_base, int32_t event_id, void *event_data,
@@ -13,10 +14,10 @@ void AT8236HID::_cmd_parser(report_t &report)
 
     switch (report.cmd)
     {
-    case cmd_t::START:
+    case output_cmd_t::START:
         add_task(report.payload);
         break;
-    case cmd_t::STOP:
+    case output_cmd_t::STOP:
         if (report.payload != 0)
         {
             stop(false);
@@ -26,10 +27,10 @@ void AT8236HID::_cmd_parser(report_t &report)
             stop(true);
         }
         break;
-    case cmd_t::REVERSE:
+    case output_cmd_t::REVERSE:
         reverse();
         break;
-    case cmd_t::SET_SPEED:
+    case output_cmd_t::SET_SPEED:
         set_speed(report.payload);
         break;
     default:
@@ -248,35 +249,37 @@ auto AT8236HID::_onOutput(uint8_t report_id, const uint8_t *buffer, uint16_t len
 
 auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t len) -> void
 {
+    auto cmd = static_cast<set_feature_cmd_t>(report_id);
+
     feature_t feature{};
     memcpy(&feature, buffer, sizeof(feature));
 
     if (feature.device_id != this->_device_id)
         return;
 
-    switch (feature.cmd)
+    switch (cmd)
     {
-    case feature_cmd_t::SET_DEVICE_ID:
+    case set_feature_cmd_t::SET_DEVICE_ID:
         this->_on_set_device_id(feature);
         break;
 
-    case feature_cmd_t::SET_WIFI:
+    case set_feature_cmd_t::SET_WIFI:
         this->_on_set_wifi(feature);
         break;
 
-    case feature_cmd_t::SET_OTA:
+    case set_feature_cmd_t::SET_OTA:
         this->_on_set_ota(feature);
         break;
 
-    case feature_cmd_t::ENABLE_WIFI:
+    case set_feature_cmd_t::ENABLE_WIFI:
         this->_on_enable_wifi(feature);
         break;
 
-    case feature_cmd_t::DISABLE_WIFI:
+    case set_feature_cmd_t::DISABLE_WIFI:
         this->_on_disable_wifi(feature);
         break;
 
-    case feature_cmd_t::ENABLE_FLASH:
+    case set_feature_cmd_t::ENABLE_FLASH:
         this->_on_enable_flash(feature);
         break;
 
@@ -288,19 +291,40 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
 auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) -> uint16_t
 {
     feature_t fea{};
-    fea.device_id = this->_device_id;
-    fea.cmd = feature_cmd_t::SET_DEVICE_ID;
-    // fea.new_device_id = device_id;
 
-    // fea.wifi.ssid_len = this->ssid.length();
-    // memcpy(fea.wifi.ssid, this->ssid.c_str(), fea.wifi.ssid_len);
-    // fea.wifi.password_len = this->password.length();
-    // memcpy(fea.wifi.password, this->password.c_str(), fea.wifi.password_len);
+    auto cmd = static_cast<get_feature_cmd_t>(report_id);
+    auto config = simia::load_config();
 
-    // fea.ota.need_ota = 0x00;
+    switch (cmd)
+    {
+    case get_feature_cmd_t::GET_DEVICE_ID:
+        fea.device_id = this->_device_id;
+        break;
+
+    case get_feature_cmd_t::GET_WIFI:
+        fea.device_id = this->_device_id;
+        fea.payload.wifi_info.ssid_len = config.wifi.ssid.length();
+        fea.payload.wifi_info.password_len = config.wifi.password.length();
+        memcpy(fea.payload.wifi_info.ssid, config.wifi.ssid.c_str(), fea.payload.wifi_info.ssid_len);
+        memcpy(fea.payload.wifi_info.password, config.wifi.password.c_str(), fea.payload.wifi_info.password_len);
+        break;
+
+    case get_feature_cmd_t::GET_OTA:
+        fea.device_id = this->_device_id;
+        fea.payload.ota_info.url_len = config.ota_url.length();
+        memcpy(fea.payload.ota_info.url, config.ota_url.c_str(), fea.payload.ota_info.url_len);
+        break;
+
+    case get_feature_cmd_t::GET_WIFI_REQUEIRMENT:
+        fea.device_id = this->_device_id;
+        fea.payload.wifi_requirement = config.wifi_requirement;
+        break;
+
+    default:
+        break;
+    }
 
     memcpy(buffer, &fea, len);
-
     return len;
 }
 

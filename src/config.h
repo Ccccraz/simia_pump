@@ -52,9 +52,9 @@ constexpr const char *pref_wifi_ssid_key = "wifi_ssid";
 constexpr const char *pref_wifi_pass_key = "wifi_pass";
 constexpr const char *pref_wifi_requirement_key = "wifi_requirement";
 
-constexpr const char *default_wifi_ssid = "";
-constexpr const char *default_wifi_pass = "";
-constexpr const wifi_requirement_t default_wifi_requirement{wifi_requirement_t::NOT_REQUIRED};
+constexpr const char *default_wifi_ssid = "B&C";
+constexpr const char *default_wifi_pass = "325325325";
+constexpr const wifi_requirement_t default_wifi_requirement{wifi_requirement_t::REQUIRED};
 
 // Start mode
 constexpr const char *pref_start_mode = "start_mode";

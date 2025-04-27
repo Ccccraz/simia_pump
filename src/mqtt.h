@@ -1,11 +1,12 @@
 #ifndef MQTT_H
 #define MQTT_H
 
-const char *mqtt_broker = "broker.emqx.io";
-const char *mqtt_topic = "emqx/esp32/telemetry";
-const char *mqtt_username = "emqx";
-const char *mqtt_password = "public";
-const int mqtt_port = 8883;
+const char *mqtt_broker = "l12d91fe.ala.cn-hangzhou.emqxsl.cn";
+const char *mqtt_topic_sub = "msg/ota";
+const char *mqtt_topic_pub = "msg/otaback";
+const char *mqtt_username = "ccccr";
+const char *mqtt_password = "cogpcogp";
+const int mqtt_port{8883};
 
 // Root CA Certificate
 // Load DigiCert Global Root G2, which is used by EMQX Public Broker: broker.emqx.io

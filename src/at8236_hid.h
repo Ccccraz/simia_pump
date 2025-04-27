@@ -1,5 +1,6 @@
 #ifndef AT8236_HID
 #define AT8236_HID
+#include "config.h"
 
 #include <Arduino.h>
 #include <USBHID.h>
@@ -12,24 +13,25 @@ struct wifi_info_t
 {
     uint8_t ssid_len;
     uint8_t password_len;
-    uint8_t ssid[29];
-    uint8_t password[29];
+    uint8_t ssid[30];
+    uint8_t password[30];
 };
 
 struct ota_info_t
 {
     uint8_t url_len;
-    uint8_t url[59];
+    uint8_t url[61];
 };
 
 union feature_payload_t {
     wifi_info_t wifi_info;
+    simia::wifi_requirement_t wifi_requirement;
     ota_info_t ota_info;
     uint8_t new_device_id;
-    uint8_t data[60];
+    uint8_t data[62];
 };
 
-enum class feature_cmd_t : uint8_t
+enum class set_feature_cmd_t : uint8_t
 {
     SET_DEVICE_ID = 0x01,
     SET_WIFI = 0x02,
@@ -39,16 +41,22 @@ enum class feature_cmd_t : uint8_t
     ENABLE_FLASH = 0x06,
 };
 
+enum class get_feature_cmd_t : uint8_t
+{
+    GET_DEVICE_ID = 0x01,
+    GET_WIFI = 0x02,
+    GET_OTA = 0x03,
+    GET_WIFI_REQUEIRMENT = 0x04,
+};
+
 struct feature_t
 {
     uint8_t device_id;
-    feature_cmd_t cmd;
-    uint8_t payload_len;
     feature_payload_t payload;
 };
 
 // HID Report
-enum class cmd_t : uint8_t
+enum output_cmd_t : uint8_t
 {
     START = 0x00,
     STOP = 0x01,
@@ -59,7 +67,7 @@ enum class cmd_t : uint8_t
 struct report_t
 {
     uint8_t device_id;
-    cmd_t cmd;
+    output_cmd_t cmd;
     uint32_t payload;
 };
 
@@ -80,11 +88,14 @@ class AT8236HID : USBHIDDevice
 {
   private:
     // HID device
-    char report_descriptor[43] = {
+    char report_descriptor[220] = {
         0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
         0x09, 0x04,       // USAGE (Joystick)
         0xa1, 0x01,       // COLLECTION (Application)
         0xa1, 0x00,       //   COLLECTION (Physical)
+
+        // Report ID 1
+        0x85, 0x01,       //     REPORT_ID (1)
         0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
         0x09, 0x39,       //     USAGE (Hat switch)
         0x15, 0x01,       //     LOGICAL_MINIMUM (0)
@@ -98,13 +109,113 @@ class AT8236HID : USBHIDDevice
         0x95, 0x06,       //     REPORT_COUNT (6)
         0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
 
-        0x09, 0x02, //     USAGE (Vendor Usage 2)
-        0x75, 0x08, //     REPORT_SIZE (8)
-        0x95, 0x3F, //     REPORT_COUNT (63)
-        0xb1, 0x02, //     FEATURE (Data,Var,Abs)
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
 
-        0xc0, //   END_COLLECTION
-        0xc0  // END_COLLECTION
+        // Report ID 2
+        0x85, 0x02,       //     REPORT_ID (2)
+        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x39,       //     USAGE (Hat switch)
+        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
+        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x01,       //     REPORT_COUNT (1)
+        0x81, 0x02,       //     INPUT (Data,Var,Abs)
+        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
+        0x09, 0x01,       //     USAGE (Vendor Usage 1)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
+        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
+
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
+
+        // Report ID 3
+        0x85, 0x03,       //     REPORT_ID (3)
+        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x39,       //     USAGE (Hat switch)
+        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
+        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x01,       //     REPORT_COUNT (1)
+        0x81, 0x02,       //     INPUT (Data,Var,Abs)
+        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
+        0x09, 0x01,       //     USAGE (Vendor Usage 1)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
+        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
+
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
+
+        // Report ID 4
+        0x85, 0x04,       //     REPORT_ID (4)
+        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x39,       //     USAGE (Hat switch)
+        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
+        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x01,       //     REPORT_COUNT (1)
+        0x81, 0x02,       //     INPUT (Data,Var,Abs)
+        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
+        0x09, 0x01,       //     USAGE (Vendor Usage 1)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
+        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
+
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
+
+        // Report ID 5
+        0x85, 0x05,       //     REPORT_ID (5)
+        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x39,       //     USAGE (Hat switch)
+        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
+        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x01,       //     REPORT_COUNT (1)
+        0x81, 0x02,       //     INPUT (Data,Var,Abs)
+        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
+        0x09, 0x01,       //     USAGE (Vendor Usage 1)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
+        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
+
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
+
+        // Report ID 6
+        0x85, 0x06,       //     REPORT_ID (6)
+        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+        0x09, 0x39,       //     USAGE (Hat switch)
+        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
+        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x01,       //     REPORT_COUNT (1)
+        0x81, 0x02,       //     INPUT (Data,Var,Abs)
+        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
+        0x09, 0x01,       //     USAGE (Vendor Usage 1)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x06,       //     REPORT_COUNT (6)
+        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
+
+        0x09, 0x02,       //     USAGE (Vendor Usage 2)
+        0x75, 0x08,       //     REPORT_SIZE (8)
+        0x95, 0x3F,       //     REPORT_COUNT (63)
+        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
+
+        0xc0,             //   END_COLLECTION
+        0xc0              // END_COLLECTION
     };
     uint8_t _device_id{0};
 
