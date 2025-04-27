@@ -73,18 +73,17 @@ void ota_monitor_task(void *param)
     while (true)
     {
         status = HttpsOTA.status();
-        switch (status)
+        mqtt_client.publish(mqtt_topic_pub, "OTA update in progress");
+
+        if (status == HTTPS_OTA_SUCCESS)
         {
-        case HTTPS_OTA_SUCCESS:
             mqtt_client.publish(mqtt_topic_pub, "OTA update success");
             ESP.restart();
-        case HTTPS_OTA_FAIL:
+        }
+        else if (status == HTTPS_OTA_FAIL)
+        {
             mqtt_client.publish(mqtt_topic_pub, "OTA update failed");
             ESP.restart();
-        default:
-            mqtt_client.publish(mqtt_topic_pub, "UNKNOWN OTA update status");
-            ESP.restart();
-            break;
         }
 
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -286,7 +285,7 @@ void normal_start(simia::config_t config)
                 {
                     esp_client.setCACert(ca_cert);
                     connect_mqtt();
-                    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 10, nullptr, 1, nullptr, 1);
+                    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 100, nullptr, 1, nullptr, 1);
                     break;
                 }
                 else
