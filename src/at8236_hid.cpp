@@ -231,7 +231,7 @@ auto AT8236HID::begin() -> void
 {
     _usbhid.begin();
 
-    xTaskCreatePinnedToCore(_work_thread, "AT8236HID", 1024 * 20, this, configMAX_PRIORITIES - 1, nullptr, 1);
+    xTaskCreatePinnedToCore(_work_thread, "AT8236HID", 1024 * 8, this, configMAX_PRIORITIES - 1, nullptr, 1);
 }
 
 auto AT8236HID::_onGetDescriptor(uint8_t *buffer) -> uint16_t

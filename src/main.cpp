@@ -1,25 +1,31 @@
 #include "at8236_hid.h"
 #include "config.h"
 #include "mqtt.h"
-#include "utils.h"
+#include "ota.h"
 
 #include <Arduino.h>
 #include <OneButton.h>
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <HttpsOTAUpdate.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_https_ota.h>
 
 #include <USB.h>
 
-auto esp_client = std::make_shared<WiFiClientSecure>();
-auto mqtt_client = std::make_shared<PubSubClient>(*esp_client);
+WiFiClientSecure esp_client;
+PubSubClient mqtt_client(esp_client);
+
+// control functions
+OneButton start_button{};
+OneButton stop_button{};
+OneButton reverse_button{};
 
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
+// Callback for button events
 static void start()
 {
     pump.add_task(0);
@@ -37,44 +43,11 @@ void reverse()
 
 void init_device_id()
 {
+    simia::init_device_id();
     pump.set_device_id(simia::default_device_id);
 }
 
-void ota_monitor_task(void *param)
-{
-    auto status = HttpsOTA.status();
-    mqtt_client->publish(mqtt_topic_pub, "OTA update in progress");
-    while (true)
-    {
-        status = HttpsOTA.status();
-
-        if (status == HTTPS_OTA_SUCCESS)
-        {
-            mqtt_client->publish(mqtt_topic_pub, "OTA update success");
-            ESP.restart();
-        }
-        else if (status == HTTPS_OTA_FAIL)
-        {
-            mqtt_client->publish(mqtt_topic_pub, "OTA update failed");
-            ESP.restart();
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
-void ota_update(simia::config_t &config, const String &url)
-{
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        mqtt_client->publish(mqtt_topic_pub, "OTA update started");
-
-        HttpsOTA.begin(url.c_str(), ca_cert);
-
-        xTaskCreatePinnedToCore(ota_monitor_task, "ota_monitor_task", 1024 * 10, nullptr, 1, nullptr, 1);
-    }
-}
-
+// Callback for simiapump events
 void set_device_id_cb(void *param)
 {
     auto device_id = *(uint8_t *)param;
@@ -125,6 +98,7 @@ void enable_flash_cb()
     simia::save_config(config);
 }
 
+// simiapump events handler
 static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == ARDUINO_USB_HID_SIMIA_PUMP_EVENTS)
@@ -156,66 +130,26 @@ static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int
 
 void btn_task(void *param)
 {
-    // control functions
-    OneButton start_button{};
-    OneButton stop_button{};
-    OneButton reverse_button{};
-
-    // Configure buttons
-    start_button.setup(start_pin);
-    stop_button.setup(reverse_pin);
-    reverse_button.setup(stop_pin);
-
-    start_button.attachClick(start);
-    stop_button.attachClick(stop);
-    stop_button.setPressMs(5000);
-    stop_button.attachLongPressStart(simia::init_wifi_config);
-
-    reverse_button.attachClick(reverse);
-    reverse_button.setPressMs(5000);
-    reverse_button.attachLongPressStart(init_device_id);
-
-    while (true)
-    {
-        start_button.tick();
-        stop_button.tick();
-        reverse_button.tick();
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
 }
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
-    auto url = parse_gitee_url();
-
-    if (url.isEmpty())
-    {
-        mqtt_client->publish(mqtt_topic_pub, "Failed to parse url");
-        return;
-    }
-    else
-    {
-        mqtt_client->publish(mqtt_topic_pub, url.c_str());
-    }
-
-    auto config = simia::load_config();
-    ota_update(config, url);
+    ota_update(mqtt_client);
 }
 
 void connect_mqtt()
 {
-    mqtt_client->setServer(mqtt_broker, mqtt_port);
-    mqtt_client->setKeepAlive(60);
-    mqtt_client->setCallback(mqtt_callback);
+    mqtt_client.setServer(mqtt_broker, mqtt_port);
+    mqtt_client.setKeepAlive(60);
+    mqtt_client.setCallback(mqtt_callback);
 
-    while (!mqtt_client->connected())
+    while (!mqtt_client.connected())
     {
         String client_id = "esp32-client-" + String(WiFi.macAddress());
-        if (mqtt_client->connect(client_id.c_str(), mqtt_username, mqtt_password))
+        if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password))
         {
-            mqtt_client->subscribe(mqtt_topic_sub);
-            mqtt_client->publish(mqtt_topic_pub, "hello world!");
+            mqtt_client.subscribe(mqtt_topic_sub);
+            mqtt_client.publish(mqtt_topic_pub, "hello world!");
             vTaskDelay(5000);
         }
     }
@@ -223,18 +157,16 @@ void connect_mqtt()
 
 void mqtt_task(void *param)
 {
-    esp_client->setCACert(ca_cert);
-
     connect_mqtt();
 
-    auto status = HttpsOTA.status();
     while (true)
     {
-        if (!mqtt_client->connected())
+        if (!mqtt_client.connected())
         {
             connect_mqtt();
         }
-        mqtt_client->loop();
+
+        mqtt_client.loop();
 
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
@@ -262,7 +194,8 @@ void normal_start(simia::config_t config)
             {
                 if (WiFi.status() == WL_CONNECTED)
                 {
-                    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 100, nullptr, 1, nullptr, 1);
+                    esp_client.setCACert(ca_cert);
+                    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 8, nullptr, 1, nullptr, 1);
                     break;
                 }
                 else
@@ -302,10 +235,7 @@ void active_ota_start(simia::config_t config)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    esp_client->setCACert(ca_cert);
-    auto url = parse_gitee_url();
-
-    ota_update(config, url);
+    ota_without_mqtt();
 }
 
 void setup()
@@ -327,10 +257,25 @@ void setup()
         break;
     }
 
-    xTaskCreatePinnedToCore(btn_task, "btn_task", 1024 * 10, nullptr, 1, nullptr, 1);
+    start_button.setup(start_pin);
+    stop_button.setup(reverse_pin);
+    reverse_button.setup(stop_pin);
+
+    start_button.attachClick(start);
+    stop_button.attachClick(stop);
+    stop_button.setPressMs(5000);
+    stop_button.attachLongPressStart(simia::init_wifi_config);
+
+    reverse_button.attachClick(reverse);
+    reverse_button.setPressMs(5000);
+    reverse_button.attachLongPressStart(init_device_id);
 }
 
 void loop()
 {
-    vTaskDelay(portMAX_DELAY);
+    start_button.tick();
+    stop_button.tick();
+    reverse_button.tick();
+
+    vTaskDelay(pdMS_TO_TICKS(10));
 }

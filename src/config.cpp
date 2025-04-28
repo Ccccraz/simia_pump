@@ -10,7 +10,6 @@ void init_device_id()
     auto config = simia::load_config();
     config.device_id = default_device_id;
     simia::save_config(config);
-    // pump.set_device_id(config.device_id);
 }
 
 void init_wifi_config()
