@@ -2,12 +2,10 @@
   "build": {
     "arduino": {
       "ldscript": "esp32s3_out.ld",
-      "memory_type": "qio_opi",
       "partitions": "min_spiffs.csv"
     },
     "core": "esp32",
     "extra_flags": [
-      "-DBOARD_HAS_PSRAM",
       "-DARDUINO_ESP32S3_DEV",
       "-DARDUINO_USB_MODE=0",
       "-DARDUINO_RUNNING_CORE=1",

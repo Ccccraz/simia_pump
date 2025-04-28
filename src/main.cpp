@@ -18,11 +18,6 @@
 WiFiClientSecure esp_client;
 PubSubClient mqtt_client(esp_client);
 
-// control functions
-OneButton start_button{};
-OneButton stop_button{};
-OneButton reverse_button{};
-
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
 // Callback for button events
@@ -130,6 +125,31 @@ static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int
 
 void btn_task(void *param)
 {
+    // control functions
+    OneButton start_button{};
+    OneButton stop_button{};
+    OneButton reverse_button{};
+
+    start_button.setup(start_pin);
+    stop_button.setup(stop_pin);
+    reverse_button.setup(reverse_pin);
+
+    start_button.attachClick(start);
+    stop_button.attachClick(stop);
+    stop_button.setPressMs(5000);
+    stop_button.attachLongPressStart(simia::init_wifi_config);
+
+    reverse_button.attachClick(reverse);
+    reverse_button.setPressMs(5000);
+    reverse_button.attachLongPressStart(init_device_id);
+    while (true)
+    {
+        start_button.tick();
+        stop_button.tick();
+        reverse_button.tick();
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
@@ -257,25 +277,10 @@ void setup()
         break;
     }
 
-    start_button.setup(start_pin);
-    stop_button.setup(reverse_pin);
-    reverse_button.setup(stop_pin);
-
-    start_button.attachClick(start);
-    stop_button.attachClick(stop);
-    stop_button.setPressMs(5000);
-    stop_button.attachLongPressStart(simia::init_wifi_config);
-
-    reverse_button.attachClick(reverse);
-    reverse_button.setPressMs(5000);
-    reverse_button.attachLongPressStart(init_device_id);
+    xTaskCreatePinnedToCore(btn_task, "btn_task", 1024 * 8, nullptr, 1, nullptr, 1);
 }
 
 void loop()
 {
-    start_button.tick();
-    stop_button.tick();
-    reverse_button.tick();
-
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(portMAX_DELAY));
 }
