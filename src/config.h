@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 // at8236 control pins
-constexpr const uint8_t first_pin{8};
-constexpr const uint8_t second_pin{18};
+constexpr const gpio_num_t first_pin{GPIO_NUM_8};
+constexpr const gpio_num_t second_pin{GPIO_NUM_18};
 
 // system buttons
 constexpr const gpio_num_t start_pin{GPIO_NUM_35};

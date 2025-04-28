@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_https_ota.h>
+#include "alert.h"
 
 struct parse_result_t
 {

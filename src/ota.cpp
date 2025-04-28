@@ -2,6 +2,7 @@
 
 void ota_update(PubSubClient &mqtt_client)
 {
+    alert::running();
     mqtt_client.publish(mqtt_topic_pub, "Start parse url");
 
     auto result = parse_gitee_url();
@@ -9,11 +10,13 @@ void ota_update(PubSubClient &mqtt_client)
     if (result.code == 200)
     {
         mqtt_client.publish(mqtt_topic_pub, result.data.c_str());
+        alert::success();
     }
     else
     {
         std::string error = "Error code: " + std::to_string(result.code);
         mqtt_client.publish(mqtt_topic_pub, error.c_str());
+        alert::failed();
         return;
     }
 
@@ -34,13 +37,15 @@ void ota_update(PubSubClient &mqtt_client)
         if (ret == ESP_OK)
         {
             mqtt_client.publish(mqtt_topic_pub, "OTA update success");
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            alert::success();
+
             esp_restart();
         }
         else
         {
             mqtt_client.publish(mqtt_topic_pub, "OTA update failed");
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            alert::failed();
+
             esp_restart();
         }
     }
@@ -48,10 +53,12 @@ void ota_update(PubSubClient &mqtt_client)
 
 void ota_without_mqtt()
 {
+    alert::running();
     auto result = parse_gitee_url();
 
     if (result.code != 200)
     {
+        alert::failed();
         return;
     }
 
@@ -69,12 +76,12 @@ void ota_without_mqtt()
         esp_err_t ret = esp_https_ota(&ota_config);
         if (ret == ESP_OK)
         {
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            alert::success();
             esp_restart();
         }
         else
         {
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            alert::failed();
             esp_restart();
         }
     }
