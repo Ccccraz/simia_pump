@@ -13,21 +13,21 @@ struct wifi_info_t
 {
     uint8_t ssid_len;
     uint8_t password_len;
-    uint8_t ssid[30];
-    uint8_t password[30];
+    simia::wifi_requirement_t wifi_requirement;
+    uint8_t ssid[29];
+    uint8_t password[29];
 };
 
-struct ota_info_t
-{
-    uint8_t url_len;
-    uint8_t url[61];
+struct device_info_t{
+    uint8_t device_id;
+    uint8_t nickname_len;
+    uint8_t nickname[30];
 };
 
 union feature_payload_t {
     wifi_info_t wifi_info;
-    simia::wifi_requirement_t wifi_requirement;
-    ota_info_t ota_info;
-    uint8_t new_device_id;
+    device_info_t device_info;
+    simia::start_mode_t start_mode;
     uint8_t data[62];
 };
 
@@ -35,18 +35,13 @@ enum class set_feature_cmd_t : uint8_t
 {
     SET_DEVICE_ID = 0x01,
     SET_WIFI = 0x02,
-    SET_OTA = 0x03,
-    ENABLE_WIFI = 0x04,
-    DISABLE_WIFI = 0x05,
-    ENABLE_FLASH = 0x06,
+    SET_START_MODE = 0x03,
 };
 
 enum class get_feature_cmd_t : uint8_t
 {
     GET_DEVICE_ID = 0x01,
     GET_WIFI = 0x02,
-    GET_OTA = 0x03,
-    GET_WIFI_REQUEIRMENT = 0x04,
 };
 
 struct feature_t
@@ -78,17 +73,14 @@ enum arduino_usb_hid_simia_pump_event_t
     ARDUINO_USB_HID_SIMIA_PUMP_ANY_EVENT = ESP_EVENT_ANY_ID,
     ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT = 0,
     ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_WIFI_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_DISABLE_WIFI_EVENT,
-    ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_FLASH_EVENT,
+    ARDUINO_USB_HID_SIMIA_PUMP_SET_START_MODE_EVENT,
 };
 
 class AT8236HID : USBHIDDevice
 {
   private:
     // HID device
-    char report_descriptor[220] = {
+    char report_descriptor[115] = {
         0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
         0x09, 0x04,       // USAGE (Joystick)
         0xa1, 0x01,       // COLLECTION (Application)
@@ -154,70 +146,11 @@ class AT8236HID : USBHIDDevice
         0x95, 0x3F,       //     REPORT_COUNT (63)
         0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
 
-        // Report ID 4
-        0x85, 0x04,       //     REPORT_ID (4)
-        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
-        0x09, 0x39,       //     USAGE (Hat switch)
-        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
-        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x01,       //     REPORT_COUNT (1)
-        0x81, 0x02,       //     INPUT (Data,Var,Abs)
-        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
-        0x09, 0x01,       //     USAGE (Vendor Usage 1)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x06,       //     REPORT_COUNT (6)
-        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
-
-        0x09, 0x02,       //     USAGE (Vendor Usage 2)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x3F,       //     REPORT_COUNT (63)
-        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
-
-        // Report ID 5
-        0x85, 0x05,       //     REPORT_ID (5)
-        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
-        0x09, 0x39,       //     USAGE (Hat switch)
-        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
-        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x01,       //     REPORT_COUNT (1)
-        0x81, 0x02,       //     INPUT (Data,Var,Abs)
-        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
-        0x09, 0x01,       //     USAGE (Vendor Usage 1)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x06,       //     REPORT_COUNT (6)
-        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
-
-        0x09, 0x02,       //     USAGE (Vendor Usage 2)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x3F,       //     REPORT_COUNT (63)
-        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
-
-        // Report ID 6
-        0x85, 0x06,       //     REPORT_ID (6)
-        0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
-        0x09, 0x39,       //     USAGE (Hat switch)
-        0x15, 0x01,       //     LOGICAL_MINIMUM (0)
-        0x25, 0x08,       //     LOGICAL_MAXIMUM (8)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x01,       //     REPORT_COUNT (1)
-        0x81, 0x02,       //     INPUT (Data,Var,Abs)
-        0x06, 0x00, 0xff, //     USAGE_PAGE (Vendor Defined Page 1)
-        0x09, 0x01,       //     USAGE (Vendor Usage 1)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x06,       //     REPORT_COUNT (6)
-        0x91, 0x02,       //     OUTPUT (Data,Var,Abs)
-
-        0x09, 0x02,       //     USAGE (Vendor Usage 2)
-        0x75, 0x08,       //     REPORT_SIZE (8)
-        0x95, 0x3F,       //     REPORT_COUNT (63)
-        0xb1, 0x02,       //     FEATURE (Data,Var,Abs)
-
         0xc0,             //   END_COLLECTION
         0xc0              // END_COLLECTION
     };
     uint8_t _device_id{0};
+    String _device_nickname{};
 
     // HID device
     USBHID _usbhid{};
@@ -248,7 +181,7 @@ class AT8236HID : USBHIDDevice
     // Evnet handler
     void _on_set_device_id(const feature_t &feature);
     void _on_set_wifi(const feature_t &feature);
-    void _on_set_ota(const feature_t &feature);
+    void _on_set_start_mode(const feature_t &feature);
     void _on_enable_wifi(const feature_t &feature);
     void _on_disable_wifi(const feature_t &feature);
     void _on_enable_flash(const feature_t &feature);
