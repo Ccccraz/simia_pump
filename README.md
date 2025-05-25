@@ -149,3 +149,52 @@ namespace simia
   };
 };
 ```
+
+### online update
+
+considering the need for batch firmware updates and the fact that most simia pumps need to work in environments without network, we designed:
+
+- **FLASH**：device enters flash mode, user sends firmware file through serial port
+> through cogmoteGO, you can perform batch operations
+- **ACTIVE_OTA**: firmware online update, default download firmware from `gitee`, user can actively trigger firmware update
+> could batch operations through cogmoteGO, or trigger active ota by long pressing the reverse button
+
+two ways, the specific way to use depends on the value of `start_mode`
+
+#### Start mode
+
+```mermaid
+stateDiagram
+    direction LR
+    state check_start_mode <<choice>>
+    [*] --> check_start_mode: Entry
+    
+    state "Normal Start" as normal {
+        direction LR
+        [*] --> usb_begin: Entry
+        usb_begin --> pump_begin: USB initialized
+        pump_begin --> [*]: Pump ready
+    }
+    
+    state "Flash Mode" as flash {
+        direction LR
+        [*] --> init: Entry
+        init --> wait_flash: Reset complete
+        wait_flash --> [*]: Flash complete
+    }
+    
+    state "OTA Update" as ota {
+        direction LR
+        [*] --> wifi: Entry
+        wifi --> ota_update: WiFi connected
+        ota_update --> [*]: Update complete
+    }
+    
+    check_start_mode --> normal: start_mode == NORMAL
+    check_start_mode --> flash: start_mode == FLASH
+    check_start_mode --> ota: start_mode == ACTIVE_OTA
+
+    normal --> [*]
+    flash --> [*]
+    ota --> [*]
+```
