@@ -38,16 +38,17 @@ void reverse()
 
 void init_device_id()
 {
-    simia::init_device_id();
+    simia::init_device_id_nickname_config();
     pump.set_device_id(simia::default_device_id);
 }
 
 // Callback for simiapump events
-void set_device_id_cb(void *param)
+void set_device_id_nickname_cb(void *param)
 {
-    auto device_id = *(uint8_t *)param;
+    auto device_info = *(device_info_t *)param;
     auto config = simia::load_config();
-    config.device_id = device_id;
+    config.device_id = device_info.device_id;
+    config.nickname = String(device_info.nickname, device_info.nickname_len);
     simia::save_config(config);
 }
 
@@ -56,6 +57,7 @@ void set_wifi_cb(void *param)
     auto wifi_info = *(wifi_info_t *)param;
     auto wifi_ssid = String(wifi_info.ssid, wifi_info.ssid_len);
     auto wifi_password = String(wifi_info.password, wifi_info.password_len);
+    auto wifi_requirement = wifi_info.wifi_requirement;
 
     auto config = simia::load_config();
     config.wifi.ssid = wifi_ssid;
@@ -63,34 +65,13 @@ void set_wifi_cb(void *param)
     simia::save_config(config);
 }
 
-void set_ota_cb(void *param)
+void set_start_mode_cb(void *param)
 {
-    auto ota_info = *(ota_info_t *)param;
-    String ota_url = String(ota_info.url, ota_info.url_len);
+    auto start_mode = *(simia::start_mode_t *)param;
     auto config = simia::load_config();
-    config.ota_url = ota_url;
+    config.start_mode = start_mode;
     simia::save_config(config);
-}
-
-void enable_wifi_cb()
-{
-    auto config = simia::load_config();
-    config.wifi_requirement = simia::wifi_requirement_t::REQUIRED;
-    simia::save_config(config);
-}
-
-void disable_wifi_cb()
-{
-    auto config = simia::load_config();
-    config.wifi_requirement = simia::wifi_requirement_t::NOT_REQUIRED;
-    simia::save_config(config);
-}
-
-void enable_flash_cb()
-{
-    auto config = simia::load_config();
-    config.start_mode = simia::start_mode_t::FLASH;
-    simia::save_config(config);
+    ESP.restart();
 }
 
 // simiapump events handler
@@ -101,22 +82,14 @@ static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int
         switch (event_id)
         {
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT:
-            set_device_id_cb(event_data);
+            set_device_id_nickname_cb(event_data);
             break;
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT:
             set_wifi_cb(event_data);
             break;
-        case ARDUINO_USB_HID_SIMIA_PUMP_SET_OTA_EVENT:
-            set_ota_cb(event_data);
+        case ARDUINO_USB_HID_SIMIA_PUMP_SET_START_MODE_EVENT:
+            set_start_mode_cb(event_data);
             break;
-        case ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_WIFI_EVENT:
-            enable_wifi_cb();
-            break;
-        case ARDUINO_USB_HID_SIMIA_PUMP_DISABLE_WIFI_EVENT:
-            disable_wifi_cb();
-            break;
-        case ARDUINO_USB_HID_SIMIA_PUMP_ENABLE_FLASH_EVENT:
-            enable_flash_cb();
         default:
             break;
         }
@@ -203,7 +176,7 @@ void normal_start(simia::config_t config)
     USB.begin();
     pump.begin();
 
-    if (config.wifi_requirement == simia::wifi_requirement_t::REQUIRED)
+    if (config.wifi.wifi_requirement == simia::wifi_requirement_t::REQUIRED)
     {
         if (!config.wifi.ssid.isEmpty())
         {
