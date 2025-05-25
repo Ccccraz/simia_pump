@@ -161,7 +161,6 @@ void AT8236HID::_on_set_wifi(const feature_t &feature)
     wifi_info_t wifi_info{};
     wifi_info.ssid_len = feature.payload.wifi_info.ssid_len;
     wifi_info.password_len = feature.payload.wifi_info.password_len;
-    wifi_info.wifi_requirement = feature.payload.wifi_info.wifi_requirement;
     memcpy(wifi_info.ssid, feature.payload.wifi_info.ssid, wifi_info.ssid_len);
     memcpy(wifi_info.password, feature.payload.wifi_info.password, wifi_info.password_len);
     arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT, &wifi_info,
@@ -283,7 +282,6 @@ auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) 
         fea.device_id = this->_device_id;
         fea.payload.wifi_info.ssid_len = config.wifi.ssid.length();
         fea.payload.wifi_info.password_len = config.wifi.password.length();
-        fea.payload.wifi_info.wifi_requirement = config.wifi.wifi_requirement;
         memcpy(fea.payload.wifi_info.ssid, config.wifi.ssid.c_str(), fea.payload.wifi_info.ssid_len);
         memcpy(fea.payload.wifi_info.password, config.wifi.password.c_str(), fea.payload.wifi_info.password_len);
         break;

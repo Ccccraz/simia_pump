@@ -17,7 +17,6 @@ void init_wifi_config()
     auto config = simia::load_config();
     config.wifi.ssid = simia::default_wifi_ssid;
     config.wifi.password = simia::default_wifi_pass;
-    config.wifi.wifi_requirement = simia::default_wifi_requirement;
     simia::save_config(config);
 }
 
@@ -32,7 +31,6 @@ void init_config()
             {
                 .ssid = default_wifi_ssid,
                 .password = default_wifi_pass,
-                .wifi_requirement = default_wifi_requirement,
             },
         .start_mode = default_start_mode,
     };
