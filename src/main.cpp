@@ -1,6 +1,5 @@
 #include "at8236_hid.h"
 #include "config.h"
-#include "mqtt.h"
 #include "ota.h"
 
 #include <Arduino.h>
@@ -8,15 +7,11 @@
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_https_ota.h>
 
 #include <USB.h>
-
-WiFiClientSecure esp_client;
-PubSubClient mqtt_client(esp_client);
 
 AT8236HID pump(first_pin, second_pin, 1.0f);
 
@@ -57,7 +52,6 @@ void set_wifi_cb(void *param)
     auto wifi_info = *(wifi_info_t *)param;
     auto wifi_ssid = String(wifi_info.ssid, wifi_info.ssid_len);
     auto wifi_password = String(wifi_info.password, wifi_info.password_len);
-    auto wifi_requirement = wifi_info.wifi_requirement;
 
     auto config = simia::load_config();
     config.wifi.ssid = wifi_ssid;
@@ -125,46 +119,6 @@ void btn_task(void *param)
     }
 }
 
-void mqtt_callback(char *topic, byte *payload, unsigned int length)
-{
-    ota_update(mqtt_client);
-}
-
-void connect_mqtt()
-{
-    mqtt_client.setServer(mqtt_broker, mqtt_port);
-    mqtt_client.setKeepAlive(60);
-    mqtt_client.setCallback(mqtt_callback);
-
-    while (!mqtt_client.connected())
-    {
-        String client_id = "esp32-client-" + String(WiFi.macAddress());
-        if (mqtt_client.connect(client_id.c_str(), mqtt_username, mqtt_password))
-        {
-            mqtt_client.subscribe(mqtt_topic_sub);
-            mqtt_client.publish(mqtt_topic_pub, "hello world!");
-            vTaskDelay(5000);
-        }
-    }
-}
-
-void mqtt_task(void *param)
-{
-    connect_mqtt();
-
-    while (true)
-    {
-        if (!mqtt_client.connected())
-        {
-            connect_mqtt();
-        }
-
-        mqtt_client.loop();
-
-        vTaskDelay(pdMS_TO_TICKS(10000));
-    }
-}
-
 void normal_start(simia::config_t config)
 {
     pump.set_device_id(config.device_id);
@@ -175,35 +129,6 @@ void normal_start(simia::config_t config)
 
     USB.begin();
     pump.begin();
-
-    if (config.wifi.wifi_requirement == simia::wifi_requirement_t::REQUIRED)
-    {
-        if (!config.wifi.ssid.isEmpty())
-        {
-            WiFi.mode(WIFI_STA);
-            WiFi.begin(config.wifi.ssid, config.wifi.password);
-
-            for (int i = 0; i < 10; i++)
-            {
-                if (WiFi.status() == WL_CONNECTED)
-                {
-                    esp_client.setCACert(ca_cert);
-                    xTaskCreatePinnedToCore(mqtt_task, "mqtt_task", 1024 * 8, nullptr, 1, nullptr, 1);
-                    break;
-                }
-                else
-                {
-                    vTaskDelay(pdMS_TO_TICKS(1000));
-                }
-            }
-
-            if (WiFi.status() != WL_CONNECTED)
-            {
-                WiFi.disconnect();
-                WiFi.mode(WIFI_OFF);
-            }
-        }
-    }
 }
 
 void flash_start(simia::config_t config)
@@ -228,7 +153,7 @@ void active_ota_start(simia::config_t config)
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    ota_without_mqtt();
+    ota_update();
 }
 
 void setup()

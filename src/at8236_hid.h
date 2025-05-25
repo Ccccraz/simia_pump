@@ -13,9 +13,8 @@ struct wifi_info_t
 {
     uint8_t ssid_len;
     uint8_t password_len;
-    simia::wifi_requirement_t wifi_requirement;
     uint8_t ssid[29];
-    uint8_t password[29];
+    uint8_t password[30];
 };
 
 struct device_info_t{

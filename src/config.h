@@ -14,18 +14,11 @@ constexpr const gpio_num_t reverse_pin{GPIO_NUM_37};
 
 namespace simia
 {
-enum class wifi_requirement_t : uint8_t
-{
-    REQUIRED = 0x00,
-    NOT_REQUIRED = 0x01
-};
-
 // WiFi Config
 struct wifi_config_t
 {
     String ssid;
     String password;
-    wifi_requirement_t wifi_requirement;
 };
 
 // Start Mode
@@ -57,7 +50,6 @@ constexpr const uint8_t default_device_id{0};
 // WiFi
 constexpr const char *default_wifi_ssid = "";
 constexpr const char *default_wifi_pass = "";
-constexpr const wifi_requirement_t default_wifi_requirement{wifi_requirement_t::NOT_REQUIRED};
 
 // Start mode
 constexpr const start_mode_t default_start_mode{start_mode_t::NORMAL};
