@@ -170,8 +170,8 @@ void AT8236HID::_on_set_wifi(const feature_t &feature)
 void AT8236HID::_on_set_start_mode(const feature_t &feature)
 {
     auto data = feature.payload.start_mode;
-    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_START_MODE_EVENT,
-                           &data, sizeof(simia::start_mode_t), portMAX_DELAY);
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_START_MODE_EVENT, &data,
+                           sizeof(simia::start_mode_t), portMAX_DELAY);
 }
 
 auto AT8236HID::stop(bool all) -> void
