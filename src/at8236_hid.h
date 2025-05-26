@@ -8,28 +8,6 @@
 #include <atomic>
 #include <cstring>
 
-// HID Features
-struct wifi_info_t
-{
-    uint8_t ssid_len;
-    uint8_t password_len;
-    uint8_t ssid[29];
-    uint8_t password[30];
-};
-
-struct device_info_t{
-    uint8_t device_id;
-    uint8_t nickname_len;
-    uint8_t nickname[30];
-};
-
-union feature_payload_t {
-    wifi_info_t wifi_info;
-    device_info_t device_info;
-    simia::start_mode_t start_mode;
-    uint8_t data[62];
-};
-
 enum class set_feature_cmd_t : uint8_t
 {
     SET_DEVICE_ID = 0x01,
@@ -43,11 +21,35 @@ enum class get_feature_cmd_t : uint8_t
     GET_WIFI = 0x02,
 };
 
+// HID Features
+struct wifi_info_t
+{
+    uint8_t ssid_len;
+    uint8_t password_len;
+    uint8_t ssid[30];
+    uint8_t password[30];
+};
+
+struct device_info_t{
+    uint8_t device_id;
+    uint8_t nickname_len;
+    uint8_t nickname[60];
+};
+
+union feature_payload_t {
+    wifi_info_t wifi_info;
+    device_info_t device_info;
+    simia::start_mode_t start_mode;
+    uint8_t data[62];
+};
+
+#pragma pack(push, 1)
 struct feature_t
 {
     uint8_t device_id;
     feature_payload_t payload;
 };
+#pragma pack(pop)
 
 // HID Report
 enum output_cmd_t : uint8_t
@@ -58,12 +60,14 @@ enum output_cmd_t : uint8_t
     SET_SPEED = 0x03,
 };
 
+#pragma pack(push, 1)
 struct report_t
 {
     uint8_t device_id;
     output_cmd_t cmd;
     uint32_t payload;
 };
+#pragma pack(pop)
 
 // Events
 ESP_EVENT_DECLARE_BASE(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS);
