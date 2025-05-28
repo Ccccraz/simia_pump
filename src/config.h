@@ -39,23 +39,24 @@ struct config_t
 };
 
 constexpr const char *pref_name = "simia_pump_A100";
-constexpr const char *pref_config_key = "config";
 
 // Nickname
+constexpr const char *nickname_key = "nickname";
 constexpr const char *default_nickname = "simia_pump";
 
 // Device ID
+constexpr const char *device_id_key = "device_id";
 constexpr const uint8_t default_device_id{0};
 
 // WiFi
-constexpr const char *default_wifi_ssid = "";
-constexpr const char *default_wifi_pass = "";
+constexpr const char *wifi_ssid_key = "wifi_ssid";
+constexpr const char *default_wifi_ssid = "your_wifi_ssid";
+constexpr const char *wifi_pass_key = "wifi_pass";
+constexpr const char *default_wifi_pass = "your_wifi_pass";
 
 // Start mode
+constexpr const char *start_mode_key = "start_mode";
 constexpr const start_mode_t default_start_mode{start_mode_t::NORMAL};
-
-// OTA
-constexpr const char *default_ota_url = "";
 
 void init_device_id_nickname_config();
 void init_wifi_config();

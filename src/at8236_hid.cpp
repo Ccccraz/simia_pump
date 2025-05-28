@@ -235,7 +235,7 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
 
     // parse feature data
     feature_t feature{};
-    memcpy(&feature, buffer, sizeof(feature));
+    memcpy(&feature, buffer, len);
 
     // check device id
     if (feature.device_id != this->_device_id)
@@ -276,6 +276,9 @@ auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) 
     {
     case get_feature_cmd_t::GET_DEVICE_ID:
         fea.device_id = this->_device_id;
+        fea.payload.device_info.device_id = this->_device_id;
+        fea.payload.device_info.nickname_len = this->_device_nickname.length();
+        memcpy(fea.payload.device_info.nickname, this->_device_nickname.c_str(), fea.payload.device_info.nickname_len);
         break;
 
     case get_feature_cmd_t::GET_WIFI:
