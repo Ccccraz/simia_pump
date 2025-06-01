@@ -44,7 +44,7 @@ void success()
     for (size_t i = 0; i < 10; i++)
     {
         _stop_pump();
-        _start_pump_negative();
+        _start_pump_positive();
 
         vTaskDelay(pdMS_TO_TICKS(500));
         _stop_pump();
@@ -53,6 +53,8 @@ void success()
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+
+    _stop_pump();
 }
 
 void failed()
@@ -65,10 +67,12 @@ void failed()
         vTaskDelay(pdMS_TO_TICKS(2000));
         _stop_pump();
 
-        _start_pump_positive();
+        _start_pump_negative();
 
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
+
+    _stop_pump();
 }
 
 } // namespace alert
