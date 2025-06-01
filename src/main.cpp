@@ -70,6 +70,8 @@ void enable_active_ota()
 {
     config.start_mode = simia::start_mode_t::ACTIVE_OTA;
     simia::save_config(config);
+
+    ESP.restart();
 }
 
 void set_start_mode_cb(void *param)
@@ -157,6 +159,8 @@ void active_ota_start(simia::config_t config)
 {
     config.start_mode = simia::start_mode_t::NORMAL;
     simia::save_config(config);
+
+    alert::start_ota();
 
     if (config.wifi.ssid.isEmpty())
         return;
