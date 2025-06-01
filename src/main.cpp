@@ -175,7 +175,6 @@ void active_ota_start(simia::config_t config)
 void setup()
 {
     config = simia::load_config();
-    pump.set_config(config);
 
     switch (config.start_mode)
     {
