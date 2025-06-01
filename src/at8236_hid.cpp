@@ -79,8 +79,8 @@ void AT8236HID::_stop_direct()
 /// @param in1_pin Positive pin
 /// @param in2_pin Negative pin
 /// @param speed Initial speed
-AT8236HID::AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed)
-    : _in1_pin(in1_pin), _in2_pin(in2_pin), _speed(constrain(speed, 0.0f, 1.0f))
+AT8236HID::AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed, simia::config_t &config)
+    : _in1_pin(in1_pin), _in2_pin(in2_pin), _speed(constrain(speed, 0.0f, 1.0f)), _config(config)
 {
     // Set up positive pin and negative pin
     pinMode(_in1_pin, OUTPUT);
@@ -269,9 +269,6 @@ auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) 
     // detect get feature command
     auto cmd = static_cast<get_feature_cmd_t>(report_id);
 
-    // load config
-    auto config = simia::load_config();
-
     switch (cmd)
     {
     case get_feature_cmd_t::GET_DEVICE_ID:
@@ -283,10 +280,10 @@ auto AT8236HID::_onGetFeature(uint8_t report_id, uint8_t *buffer, uint16_t len) 
 
     case get_feature_cmd_t::GET_WIFI:
         fea.device_id = this->_device_id;
-        fea.payload.wifi_info.ssid_len = config.wifi.ssid.length();
-        fea.payload.wifi_info.password_len = config.wifi.password.length();
-        memcpy(fea.payload.wifi_info.ssid, config.wifi.ssid.c_str(), fea.payload.wifi_info.ssid_len);
-        memcpy(fea.payload.wifi_info.password, config.wifi.password.c_str(), fea.payload.wifi_info.password_len);
+        fea.payload.wifi_info.ssid_len = _config.wifi.ssid.length();
+        fea.payload.wifi_info.password_len = _config.wifi.password.length();
+        memcpy(fea.payload.wifi_info.ssid, _config.wifi.ssid.c_str(), fea.payload.wifi_info.ssid_len);
+        memcpy(fea.payload.wifi_info.password, _config.wifi.password.c_str(), fea.payload.wifi_info.password_len);
         break;
 
     default:
@@ -318,7 +315,8 @@ auto AT8236HID::set_speed(uint32_t speed) -> void
     }
 }
 
-auto AT8236HID::set_device_id(uint8_t device_id) -> void
+auto AT8236HID::set_device_info(uint8_t device_id, String device_nickname) -> void
 {
     this->_device_id = device_id;
+    this->_device_nickname =  device_nickname;
 }

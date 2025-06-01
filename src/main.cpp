@@ -13,7 +13,11 @@
 
 #include <USB.h>
 
-AT8236HID pump(first_pin, second_pin, 1.0f);
+#include <esp32-hal-tinyusb.h>
+
+simia::config_t config{};
+
+AT8236HID pump(first_pin, second_pin, 1.0f, config);
 
 // Callback for button events
 static void start()
@@ -34,14 +38,13 @@ void reverse()
 void init_device_id()
 {
     simia::init_device_id_nickname_config();
-    pump.set_device_id(simia::default_device_id);
+    pump.set_device_info(simia::default_device_id, simia::default_nickname);
 }
 
 // Callback for simiapump events
 void set_device_id_nickname_cb(void *param)
 {
     auto device_info = *(device_info_t *)param;
-    auto config = simia::load_config();
     config.device_id = device_info.device_id;
     config.nickname = String(device_info.nickname, device_info.nickname_len);
     simia::save_config(config);
@@ -53,19 +56,38 @@ void set_wifi_cb(void *param)
     auto wifi_ssid = String(wifi_info.ssid, wifi_info.ssid_len);
     auto wifi_password = String(wifi_info.password, wifi_info.password_len);
 
-    auto config = simia::load_config();
     config.wifi.ssid = wifi_ssid;
     config.wifi.password = wifi_password;
+    simia::save_config(config);
+}
+
+void enable_flash_mode()
+{
+    usb_persist_restart(RESTART_BOOTLOADER);
+}
+
+void enable_active_ota()
+{
+    config.start_mode = simia::start_mode_t::ACTIVE_OTA;
     simia::save_config(config);
 }
 
 void set_start_mode_cb(void *param)
 {
     auto start_mode = *(simia::start_mode_t *)param;
-    auto config = simia::load_config();
-    config.start_mode = start_mode;
-    simia::save_config(config);
-    ESP.restart();
+    switch (start_mode)
+    {
+    case simia::start_mode_t::FLASH:
+        usb_persist_restart(RESTART_BOOTLOADER);
+        break;
+
+    case simia::start_mode_t::ACTIVE_OTA:
+        enable_active_ota();
+        break;
+
+    default:
+        break;
+    }
 }
 
 // simiapump events handler
@@ -121,7 +143,7 @@ void btn_task(void *param)
 
 void normal_start(simia::config_t config)
 {
-    pump.set_device_id(config.device_id);
+    pump.set_device_info(config.device_id, config.nickname);
     pump.onEvent(simiapump_event_callback);
 
     USB.manufacturerName("simia");
@@ -129,12 +151,6 @@ void normal_start(simia::config_t config)
 
     USB.begin();
     pump.begin();
-}
-
-void flash_start(simia::config_t config)
-{
-    config.start_mode = simia::start_mode_t::NORMAL;
-    simia::save_config(config);
 }
 
 void active_ota_start(simia::config_t config)
@@ -158,15 +174,13 @@ void active_ota_start(simia::config_t config)
 
 void setup()
 {
-    auto config = simia::load_config();
+    config = simia::load_config();
+    pump.set_config(config);
 
     switch (config.start_mode)
     {
     case simia::start_mode_t::NORMAL:
         normal_start(config);
-        break;
-    case simia::start_mode_t::FLASH:
-        flash_start(config);
         break;
     case simia::start_mode_t::ACTIVE_OTA:
         active_ota_start(config);

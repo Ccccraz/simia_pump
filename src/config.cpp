@@ -4,6 +4,7 @@
 namespace simia
 {
     Preferences prefs{};
+    std::mutex prefs_mutex{};
 
     void init_device_id_nickname_config()
     {
@@ -22,8 +23,6 @@ namespace simia
 
     void init_config()
     {
-        prefs.begin(pref_name, false);
-
         config_t config{
             .nickname = default_nickname,
             .device_id = default_device_id,
@@ -36,8 +35,6 @@ namespace simia
         };
 
         save_config(config);
-
-        prefs.end();
     }
     config_t load_config()
     {
@@ -46,7 +43,9 @@ namespace simia
         if (!prefs.isKey(nickname_key))
         {
             prefs.end();
+
             init_config();
+
             prefs.begin(pref_name, true);
         }
 
@@ -61,6 +60,7 @@ namespace simia
     }
     void save_config(config_t config)
     {
+        std::lock_guard<std::mutex> lock(prefs_mutex);
         prefs.begin(pref_name, false);
 
         prefs.putString(nickname_key, config.nickname);

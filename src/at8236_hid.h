@@ -30,13 +30,15 @@ struct wifi_info_t
     uint8_t password[30];
 };
 
-struct device_info_t{
+struct device_info_t
+{
     uint8_t device_id;
     uint8_t nickname_len;
     uint8_t nickname[60];
 };
 
-union feature_payload_t {
+union feature_payload_t
+{
     wifi_info_t wifi_info;
     device_info_t device_info;
     simia::start_mode_t start_mode;
@@ -81,7 +83,7 @@ enum arduino_usb_hid_simia_pump_event_t
 
 class AT8236HID : USBHIDDevice
 {
-  private:
+private:
     // HID device
     char report_descriptor[115] = {
         0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
@@ -155,6 +157,8 @@ class AT8236HID : USBHIDDevice
     uint8_t _device_id{0};
     String _device_nickname{};
 
+    simia::config_t &_config;
+
     // HID device
     USBHID _usbhid{};
 
@@ -185,12 +189,9 @@ class AT8236HID : USBHIDDevice
     void _on_set_device_id(const feature_t &feature);
     void _on_set_wifi(const feature_t &feature);
     void _on_set_start_mode(const feature_t &feature);
-    void _on_enable_wifi(const feature_t &feature);
-    void _on_disable_wifi(const feature_t &feature);
-    void _on_enable_flash(const feature_t &feature);
 
-  public:
-    AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed);
+public:
+    AT8236HID(uint8_t in1_pin, uint8_t in2_pin, float speed, simia::config_t &config);
     ~AT8236HID() = default;
 
     void add_task(uint32_t duration);
@@ -198,7 +199,7 @@ class AT8236HID : USBHIDDevice
     auto reverse() -> void;
 
     auto set_speed(uint32_t speed) -> void;
-    auto set_device_id(uint8_t device_id) -> void;
+    auto set_device_info(uint8_t device_id, String device_nickname) -> void;
 
     auto begin() -> void;
     auto _onGetDescriptor(uint8_t *buffer) -> uint16_t;

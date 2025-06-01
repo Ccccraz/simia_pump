@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <mutex>
 
 // at8236 control pins
 constexpr const gpio_num_t first_pin{GPIO_NUM_8};
