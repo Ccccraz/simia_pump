@@ -99,7 +99,7 @@ static void simiapump_event_callback(void *arg, esp_event_base_t event_base, int
     {
         switch (event_id)
         {
-        case ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT:
+        case ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_INFO_EVENT:
             set_device_id_nickname_cb(event_data);
             break;
         case ARDUINO_USB_HID_SIMIA_PUMP_SET_WIFI_EVENT:

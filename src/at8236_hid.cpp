@@ -152,7 +152,7 @@ void AT8236HID::_on_set_device_id(const feature_t &feature)
     this->_device_id = feature.payload.device_info.device_id;
     this->_device_nickname = String(feature.payload.device_info.nickname, feature.payload.device_info.nickname_len);
     auto data = feature.payload.device_info;
-    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_EVENT, &data,
+    arduino_usb_event_post(ARDUINO_USB_HID_SIMIA_PUMP_EVENTS, ARDUINO_USB_HID_SIMIA_PUMP_SET_DEVICE_INFO_EVENT, &data,
                            sizeof(device_info_t), portMAX_DELAY);
 }
 
@@ -244,7 +244,7 @@ auto AT8236HID::_onSetFeature(uint8_t report_id, const uint8_t *buffer, uint16_t
     // dispatch command
     switch (cmd)
     {
-    case set_feature_cmd_t::SET_DEVICE_ID:
+    case set_feature_cmd_t::SET_DEVICE_INFO:
         this->_on_set_device_id(feature);
         break;
 
